@@ -49,6 +49,30 @@ export function buildClipBoundary(state, clip) {
   return loops.map(loop => polylineToGeometry(loop));
 }
 
+// Domain boundary (UV rectangle) mapped into 3D by existing vertices along the mesh outer ring
+export function buildDomainBoundary(state) {
+  const { resU, resV } = state;
+  const pos = state.geometry.attributes.position;
+  const pts = [];
+  // top edge (j=0, i=0..resU)
+  for (let i=0;i<=resU;i++) {
+    const idx = 0*(resU+1) + i; pts.push([pos.getX(idx), pos.getY(idx), pos.getZ(idx)]);
+  }
+  // right edge (i=resU, j=1..resV)
+  for (let j=1;j<=resV;j++) {
+    const idx = j*(resU+1) + resU; pts.push([pos.getX(idx), pos.getY(idx), pos.getZ(idx)]);
+  }
+  // bottom edge (j=resV, i=resU-1..0)
+  for (let i=resU-1;i>=0;i--) {
+    const idx = resV*(resU+1) + i; pts.push([pos.getX(idx), pos.getY(idx), pos.getZ(idx)]);
+  }
+  // left edge (i=0, j=resV-1..1)
+  for (let j=resV-1;j>=1;j--) {
+    const idx = j*(resU+1); pts.push([pos.getX(idx), pos.getY(idx), pos.getZ(idx)]);
+  }
+  return [polylineToGeometry(pts)];
+}
+
 function joinSegments(segs) {
   const eps = 1e-3;
   const key = (p) => `${p[0].toFixed(3)},${p[1].toFixed(3)},${p[2].toFixed(3)}`;

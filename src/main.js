@@ -8,7 +8,7 @@ import { LineGeometry } from 'https://unpkg.com/three@0.160.0/examples/jsm/lines
 
 import { buildSurface, colorizeGeometry, SurfacePresets, createSurfaceParams, setClip, makeLineClippable, setLineClip } from './surface.js';
 import { buildIsoGrid, buildEdgeShortestPath, buildParamStraight } from './geodesic.js';
-import { buildClipBoundary } from './boundary.js';
+import { buildClipBoundary, buildDomainBoundary } from './boundary.js';
 import { MarkerLayer } from './markers.js';
 
 const container = document.getElementById('canvas-container');
@@ -85,8 +85,12 @@ function rebuildGeodesics() {
     const ccolor = new THREE.Color(document.getElementById('clipColor').value);
     const calpha = parseFloat(document.getElementById('clipAlpha').value);
     const cwidth = parseFloat(document.getElementById('clipWidth').value);
-    const overlayClip = overlayClipParams();
-    const boundaryGeos = buildClipBoundary(surfaceState, overlayClip);
+    let boundaryGeos;
+    if (params.clip && params.clip.mode !== 'none') {
+      boundaryGeos = buildClipBoundary(surfaceState, params.clip);
+    } else {
+      boundaryGeos = buildDomainBoundary(surfaceState);
+    }
     for (const g of boundaryGeos) {
       const line = toLine2(g, { style: cstyle, color: ccolor, alpha: calpha, width: cwidth });
       // No need to make clippable/invert: boundary is already the curve itself
