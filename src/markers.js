@@ -16,7 +16,7 @@ export class MarkerLayer {
     // ensure outline appears for clip-path shapes as well
     el.style.filter = 'drop-shadow(0 0 0 white) drop-shadow(0 0 6px rgba(0,0,0,0.35))';
     this.container.appendChild(el);
-    this.markers.push({ position: position.clone(), el, size, color, alpha, sx:0, sy:0 });
+    this.markers.push({ position: position.clone(), el, size, color, alpha, shape, sx:0, sy:0 });
   }
 
   clear() {

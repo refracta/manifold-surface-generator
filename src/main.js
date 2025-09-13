@@ -28,6 +28,7 @@ const defaultCamPos = camera.position.clone();
 
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
+controls.addEventListener('change', () => scheduleUpdateURL());
 
 // Lights
 scene.add(new THREE.AmbientLight(0xffffff, 0.6));
@@ -251,7 +252,8 @@ document.getElementById('clearGeodesics').onclick = () => { geodesicGroup.clear(
 renderer.domElement.addEventListener('contextmenu', (ev) => {
   ev.preventDefault();
   const rect = renderer.domElement.getBoundingClientRect();
-  markerLayer.removeNearestAt(ev.clientX - rect.left, ev.clientY - rect.top, 24);
+  const removed = markerLayer.removeNearestAt(ev.clientX - rect.left, ev.clientY - rect.top, 24);
+  if (removed) scheduleUpdateURL();
 });
 
 // Markers
@@ -315,6 +317,7 @@ renderer.domElement.addEventListener('pointerup', (ev) => {
       color: markerColor.value,
       alpha: parseFloat(markerAlpha.value),
     });
+    scheduleUpdateURL();
   }
 });
 
@@ -514,6 +517,7 @@ function rebuildBoundaryLines() {
 function snapshotConfig() {
   const cfg = { preset: params.type, resU: params.resU, resV: params.resV, scale: params.scale,
     presetParams: {}, wireframe: !!document.getElementById('wireframe').checked,
+    camera: { pos: [camera.position.x, camera.position.y, camera.position.z], target: [controls.target.x, controls.target.y, controls.target.z] },
     mask: {
       mode: document.getElementById('clipMode').value,
       rectW: parseFloat(document.getElementById('clipRectW').value),
@@ -552,7 +556,8 @@ function snapshotConfig() {
       shape: document.getElementById('markerShape').value,
       size: parseInt(document.getElementById('markerSize').value,10),
       color: document.getElementById('markerColor').value,
-      alpha: parseFloat(document.getElementById('markerAlpha').value)
+      alpha: parseFloat(document.getElementById('markerAlpha').value),
+      items: markerLayer.markers.map(m => ({ x: m.position.x, y: m.position.y, z: m.position.z, shape: m.shape || 'circle', size: m.size, color: m.color, alpha: m.alpha }))
     }
   };
   // preset specific values
@@ -604,6 +609,12 @@ function applyConfig(diff) {
   if (diff.presetParams) {
     for (const [k,v] of Object.entries(diff.presetParams)) { params[k] = v; const el = document.getElementById(`param_${k}`); if (el) el.value = v; }
   }
+  if (diff.camera) {
+    const c = diff.camera;
+    if (Array.isArray(c.pos)) camera.position.set(c.pos[0], c.pos[1], c.pos[2]);
+    if (Array.isArray(c.target)) controls.target.set(c.target[0], c.target[1], c.target[2]);
+    controls.update();
+  }
   // Mask
   if (diff.mask) {
     const m = diff.mask;
@@ -650,6 +661,15 @@ function applyConfig(diff) {
     if (mk.size!=null) document.getElementById('markerSize').value = mk.size;
     if (mk.color) document.getElementById('markerColor').value = mk.color;
     if (mk.alpha!=null) document.getElementById('markerAlpha').value = mk.alpha;
+    if ('items' in mk) {
+      markerLayer.clear();
+      if (Array.isArray(mk.items)) {
+        for (const it of mk.items) {
+          const p = new THREE.Vector3(it.x||0, it.y||0, it.z||0);
+          markerLayer.addMarker(p, { shape: it.shape||'circle', size: it.size||14, color: it.color||'#e53935', alpha: it.alpha==null?1:it.alpha });
+        }
+      }
+    }
   }
   // Wireframe
   if (diff.wireframe!=null) document.getElementById('wireframe').checked = !!diff.wireframe;
