@@ -79,15 +79,16 @@ function rebuildGeodesics() {
   }
 
   // Mask overlay lines (outside masked region) if enabled
-  if (document.getElementById('clipLinesEnable').checked && params.clip && params.clip.mode !== 'none') {
+  if (document.getElementById('clipLinesEnable').checked) {
     const cstyle = document.getElementById('clipStyle').value;
     const ccolor = new THREE.Color(document.getElementById('clipColor').value);
     const calpha = parseFloat(document.getElementById('clipAlpha').value);
     const cwidth = parseFloat(document.getElementById('clipWidth').value);
+    const overlayClip = overlayClipParams();
     for (const geo of lines) {
       const line = toLine2(geo, { style: cstyle, color: ccolor, alpha: calpha, width: cwidth });
       makeLineClippable(line.material, surfaceState.mesh, true /* invert */);
-      setLineClip(line.material, params.clip, params.scale, true);
+      setLineClip(line.material, overlayClip, params.scale, true);
       clipLinesGroup.add(line);
     }
   }
@@ -177,10 +178,20 @@ function updateClip() {
   clipLinesGroup.traverse(obj => {
     if (obj.isLine2 || obj.isLine) {
       if (obj.material && obj.material.userData && obj.material.userData.clipUniforms) {
-        setLineClip(obj.material, params.clip, params.scale, true);
+        setLineClip(obj.material, overlayClipParams(), params.scale, true);
       }
     }
   });
+}
+
+function overlayClipParams() {
+  // When mask mode is none, still use current UI values to preview lines
+  const uiMode = document.getElementById('clipMode').value;
+  if (params.clip && params.clip.mode !== 'none') return params.clip;
+  if (uiMode === 'circle') {
+    return { mode: 'circle', radius: parseFloat(document.getElementById('clipRadius').value) };
+  }
+  return { mode: 'rect', rectW: parseFloat(document.getElementById('clipRectW').value), rectH: parseFloat(document.getElementById('clipRectH').value) };
 }
 
 document.getElementById('clipMode').addEventListener('change', () => {
@@ -382,6 +393,7 @@ function toLine2(bufferGeo, { style, color, alpha, width }) {
   });
   mat.resolution.set(renderer.domElement.clientWidth, renderer.domElement.clientHeight);
   const line = new Line2(geo, mat);
+  line.computeLineDistances();
   return line;
 }
 
