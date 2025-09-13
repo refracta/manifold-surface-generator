@@ -245,12 +245,29 @@ document.getElementById('exportGLB').onclick = () => exportGLB(surfaceGroup);
 document.getElementById('exportOBJ').onclick = () => exportOBJ(surfaceGroup);
 document.getElementById('resetCamera').onclick = () => { camera.position.copy(defaultCamPos); controls.target.set(0,0,0); controls.update(); };
 
-// Picking
+// Picking / Click detection
 const raycaster = new THREE.Raycaster();
 const pointer = new THREE.Vector2();
+let isDown = false, moved = false, downX = 0, downY = 0;
+const CLICK_MOVE_THRESH = 6; // px
+
 renderer.domElement.addEventListener('pointerdown', (ev) => {
-  // Only left-button creates markers or picks geodesic endpoints
-  if (ev.button !== 0) return;
+  if (ev.button !== 0) return; // left only
+  isDown = true; moved = false; downX = ev.clientX; downY = ev.clientY;
+});
+
+renderer.domElement.addEventListener('pointermove', (ev) => {
+  if (!isDown) return;
+  const dx = ev.clientX - downX, dy = ev.clientY - downY;
+  if (Math.hypot(dx, dy) > CLICK_MOVE_THRESH) moved = true;
+});
+
+renderer.domElement.addEventListener('pointerup', (ev) => {
+  if (ev.button !== 0) return; // left only
+  const wasClick = isDown && !moved;
+  isDown = false; moved = false;
+  if (!wasClick) return; // ignore drags
+
   const rect = renderer.domElement.getBoundingClientRect();
   pointer.x = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
   pointer.y = -((ev.clientY - rect.top) / rect.height) * 2 + 1;
@@ -259,7 +276,6 @@ renderer.domElement.addEventListener('pointerdown', (ev) => {
   if (!hit) return;
 
   if (pickingStart || pickingEnd) {
-    const idx = hit.face ? hit.face.a : 0;
     const hitUV = hit.uv || new THREE.Vector2();
     const info = { uv: new THREE.Vector2(hitUV.x, hitUV.y), position: hit.point.clone() };
     if (pickingStart) { pickedStart = info; pickingStart = false; }
