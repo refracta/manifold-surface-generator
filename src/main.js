@@ -3,7 +3,7 @@ import { OrbitControls } from 'https://unpkg.com/three@0.160.0/examples/jsm/cont
 import { GLTFExporter } from 'https://unpkg.com/three@0.160.0/examples/jsm/exporters/GLTFExporter.js';
 import { OBJExporter } from 'https://unpkg.com/three@0.160.0/examples/jsm/exporters/OBJExporter.js';
 
-import { buildSurface, colorizeGeometry, SurfacePresets, createSurfaceParams } from './surface.js';
+import { buildSurface, colorizeGeometry, SurfacePresets, createSurfaceParams, setClip } from './surface.js';
 import { buildIsoGrid, buildEdgeShortestPath, buildParamStraight } from './geodesic.js';
 import { MarkerLayer } from './markers.js';
 
@@ -45,6 +45,7 @@ function regenerateSurface() {
   surfaceGroup = group;
   surfaceState = state;
   scene.add(surfaceGroup);
+  updateClip();
   rebuildGeodesics();
 }
 
@@ -131,7 +132,7 @@ document.getElementById('preset').addEventListener('change', (e) => setPreset(e.
 document.getElementById('resU').addEventListener('change', () => { params.resU = clampInt('resU', 8, 512); regenerateSurface(); updateColors(); });
 document.getElementById('resV').addEventListener('change', () => { params.resV = clampInt('resV', 8, 512); regenerateSurface(); updateColors(); });
 document.getElementById('scale').addEventListener('input', (e) => { params.scale = parseFloat(e.target.value); regenerateSurface(); updateColors(); });
-document.getElementById('wireframe').addEventListener('change', (e) => { surfaceState.material.wireframe = e.target.checked; });
+document.getElementById('wireframe').addEventListener('change', (e) => { if (surfaceState) { surfaceState.mesh.material.wireframe = e.target.checked; surfaceState.mesh.material.needsUpdate = true; }});
 
 function updateBackground() {
   const c = document.getElementById('bgColor').value; const a = parseFloat(document.getElementById('bgAlpha').value);
@@ -149,6 +150,24 @@ document.getElementById('solidColor').addEventListener('input', updateColors);
 document.getElementById('gradAxis').addEventListener('change', updateColors);
 document.getElementById('addStop').addEventListener('click', () => { addStopRow(Math.random(), '#'+Math.floor(Math.random()*16777215).toString(16).padStart(6,'0')); updateColors(); });
 document.getElementById('surfaceOpacity').addEventListener('input', updateColors);
+
+// Clip/mask UI
+function updateClip() {
+  const mode = document.getElementById('clipMode').value;
+  const rectW = parseFloat(document.getElementById('clipRectW').value);
+  const rectH = parseFloat(document.getElementById('clipRectH').value);
+  const radius = parseFloat(document.getElementById('clipRadius').value);
+  params.clip = { mode, rectW, rectH, radius };
+  if (surfaceState) { setClip(surfaceState.mesh.material, params.clip, params.scale); }
+}
+
+document.getElementById('clipMode').addEventListener('change', () => {
+  const mode = document.getElementById('clipMode').value;
+  document.getElementById('clipRect').style.display = (mode==='rect') ? 'flex' : 'none';
+  document.getElementById('clipCircle').style.display = (mode==='circle') ? 'flex' : 'none';
+  updateClip();
+});
+['clipRectW','clipRectH','clipRadius'].forEach(id => document.getElementById(id).addEventListener('input', updateClip));
 
 document.getElementById('geoEnable').addEventListener('change', rebuildGeodesics);
 document.getElementById('geoMethod').addEventListener('change', rebuildGeodesics);
@@ -175,6 +194,13 @@ document.getElementById('addPath').onclick = () => {
   pickedStart = pickedEnd = null; pickingStart = pickingEnd = false;
 };
 document.getElementById('clearGeodesics').onclick = () => { geodesicGroup.clear(); rebuildGeodesics(); };
+
+// Right-click: remove nearest marker
+renderer.domElement.addEventListener('contextmenu', (ev) => {
+  ev.preventDefault();
+  const rect = renderer.domElement.getBoundingClientRect();
+  markerLayer.removeNearestAt(ev.clientX - rect.left, ev.clientY - rect.top, 24);
+});
 
 // Markers
 const markersEnable = document.getElementById('markersEnable');

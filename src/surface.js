@@ -69,12 +69,36 @@ export const SurfacePresets = {
       { key: 'frequency', label: 'Frequency', type: 'range', min: 0.5, max: 8, step: 0.1 },
       { key: 'iso', label: 'Iso Level', type: 'range', min: -1, max: 1, step: 0.01 },
     ]
+  },
+  folds: {
+    defaults: { resU: 140, resV: 110, scale: 1, amplitude: 0.5, folds: 5.0, skew: 0.6 },
+    controls: [
+      { key: 'amplitude', label: 'Amplitude', type: 'range', min: 0, max: 1.5, step: 0.01 },
+      { key: 'folds', label: 'Fold Count', type: 'range', min: 1, max: 12, step: 0.1 },
+      { key: 'skew', label: 'Skew', type: 'range', min: 0, max: 2.0, step: 0.01 },
+    ]
+  },
+  twist: {
+    defaults: { resU: 140, resV: 110, scale: 1, amplitude: 0.35, frequency: 2.5, twist: 1.2 },
+    controls: [
+      { key: 'amplitude', label: 'Amplitude', type: 'range', min: 0, max: 1.5, step: 0.01 },
+      { key: 'frequency', label: 'Frequency', type: 'range', min: 0.2, max: 8, step: 0.1 },
+      { key: 'twist', label: 'Twist', type: 'range', min: 0, max: 3.5, step: 0.01 },
+    ]
+  },
+  checker: {
+    defaults: { resU: 150, resV: 120, scale: 1, amplitude: 0.5, frequency: 3.0, sub: 0.25 },
+    controls: [
+      { key: 'amplitude', label: 'Amplitude', type: 'range', min: 0, max: 1.2, step: 0.01 },
+      { key: 'frequency', label: 'Frequency', type: 'range', min: 0.5, max: 10, step: 0.1 },
+      { key: 'sub', label: 'Detail', type: 'range', min: 0, max: 1, step: 0.01 },
+    ]
   }
 };
 
 export function createSurfaceParams(presetName) {
   const base = SurfacePresets[presetName]?.defaults || SurfacePresets.ripple.defaults;
-  return { type: presetName, ...JSON.parse(JSON.stringify(base)) };
+  return { type: presetName, clip: { mode: 'none', rectW: 1.6, rectH: 1.2, radius: 0.9 }, ...JSON.parse(JSON.stringify(base)) };
 }
 
 function perlin2(x, y) { // tiny pseudo noise
@@ -153,6 +177,27 @@ function mapTo3D(p, u, v) {
       z = amplitude*(gx - iso) + 0.15*Math.sin(0.7*frequency*x0+1.1*frequency*y0);
       break;
     }
+    case 'folds': {
+      const { amplitude=0.5, folds=5.0, skew=0.6 } = p;
+      const phi = Math.sin(folds * y0 + 0.3*Math.sin(0.7*x0));
+      z = amplitude * ((Math.abs(phi) ** 0.6) * Math.sign(phi)) + skew * 0.1 * Math.sin(3.0*x0 + 2.0*y0);
+      break;
+    }
+    case 'twist': {
+      const { amplitude=0.35, frequency=2.5, twist=1.2 } = p;
+      const ang = twist * x0;
+      const xt =  Math.cos(ang)*x0 - Math.sin(ang)*y0;
+      const yt =  Math.sin(ang)*x0 + Math.cos(ang)*y0;
+      z = amplitude * Math.sin(frequency*xt) * Math.cos(0.8*frequency*yt);
+      break;
+    }
+    case 'checker': {
+      const { amplitude=0.5, frequency=3.0, sub=0.25 } = p;
+      const base = Math.sin(frequency*x0)*Math.sin(frequency*y0);
+      const fine = Math.sin(2.3*frequency*x0)*Math.sin(1.7*frequency*y0);
+      z = amplitude * (base + sub*fine);
+      break;
+    }
   }
   // mild boundary irregularity so the silhouette looks organic
   const b = 0.04 * Math.sin(6*u) * Math.cos(5*v);
@@ -191,7 +236,7 @@ export function buildSurface(p) {
   geometry.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
   geometry.computeVertexNormals();
 
-  const material = new THREE.MeshStandardMaterial({ vertexColors: true, metalness: 0.0, roughness: 0.9, side: THREE.DoubleSide, transparent: true, opacity: 1 });
+  const material = createSurfaceMaterial();
   const mesh = new THREE.Mesh(geometry, material);
 
   const group = new THREE.Group();
@@ -206,6 +251,8 @@ export function buildSurface(p) {
     resU, resV,
     us, vs,
   };
+  // initialize clip uniforms
+  setClip(material, p.clip || { mode:'none' }, p.scale || 1);
   return { group, state };
 }
 
@@ -247,4 +294,42 @@ export function colorizeGeometry(geometry, options) {
   }
   geometry.setAttribute('color', new THREE.BufferAttribute(colors,3));
   geometry.attributes.color.needsUpdate = true;
+}
+
+export function createSurfaceMaterial() {
+  const material = new THREE.MeshStandardMaterial({ vertexColors: true, metalness: 0.0, roughness: 0.9, side: THREE.DoubleSide, transparent: true, opacity: 1 });
+  makeClippable(material);
+  return material;
+}
+
+function makeClippable(material) {
+  const uniforms = {
+    uClipMode: { value: 0 }, // 0 none, 1 rect, 2 circle
+    uRect: { value: new THREE.Vector4(-1,1,-1,1) },
+    uCircle: { value: new THREE.Vector3(0,0,1) },
+  };
+  material.onBeforeCompile = (shader) => {
+    shader.uniforms.uClipMode = uniforms.uClipMode;
+    shader.uniforms.uRect = uniforms.uRect;
+    shader.uniforms.uCircle = uniforms.uCircle;
+    shader.vertexShader = 'varying vec3 vLocalPos;\n' + shader.vertexShader;
+    shader.vertexShader = shader.vertexShader.replace('void main() {', 'void main() {\n  vLocalPos = position;');
+    const inject = `\nuniform int uClipMode;\nuniform vec4 uRect;\nuniform vec3 uCircle;\nvarying vec3 vLocalPos;\n`;
+    shader.fragmentShader = inject + shader.fragmentShader;
+    const check = `\n  if (uClipMode == 1) {\n    if (vLocalPos.x < uRect.x || vLocalPos.x > uRect.y || vLocalPos.z < uRect.z || vLocalPos.z > uRect.w) discard;\n  } else if (uClipMode == 2) {\n    if (distance(vec2(vLocalPos.x, vLocalPos.z), uCircle.xy) > uCircle.z) discard;\n  }\n`;
+    shader.fragmentShader = shader.fragmentShader.replace('void main() {', 'void main() {'+check);
+  };
+  material.userData.clipUniforms = uniforms;
+}
+
+export function setClip(material, clip, scale=1) {
+  const u = material.userData.clipUniforms; if (!u) return;
+  if (!clip || clip.mode === 'none') { u.uClipMode.value = 0; return; }
+  if (clip.mode === 'rect') {
+    const w = (clip.rectW ?? 1) * 0.5 * scale;
+    const h = (clip.rectH ?? 1) * 0.5 * scale;
+    u.uRect.value.set(-w, w, -h, h); u.uClipMode.value = 1;
+  } else if (clip.mode === 'circle') {
+    const r = (clip.radius ?? 1) * scale; u.uCircle.value.set(0,0,r); u.uClipMode.value = 2;
+  }
 }

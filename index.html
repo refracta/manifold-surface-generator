@@ -34,6 +34,9 @@
               <option value="ridged">Ridged Sheet</option>
               <option value="mountains">Mountains</option>
               <option value="gyroid">Gyroid Sheet</option>
+              <option value="folds">Folds</option>
+              <option value="twist">Twisted Waves</option>
+              <option value="checker">Checker Bumps</option>
             </select>
           </div>
           <div class="row">
@@ -46,6 +49,26 @@
             <input id="scale" type="range" min="0.5" max="3" step="0.1" value="1" />
           </div>
           <div id="presetParams" class="column"></div>
+          <details>
+            <summary>Mask</summary>
+            <div class="row">
+              <label>Mode</label>
+              <select id="clipMode">
+                <option value="none">None</option>
+                <option value="rect">Rect</option>
+                <option value="circle">Circle</option>
+              </select>
+            </div>
+            <div id="clipRect" class="row" style="display:none;">
+              <label>Rect W×H</label>
+              <input id="clipRectW" type="range" min="0.1" max="2.5" step="0.01" value="1.6" /> ×
+              <input id="clipRectH" type="range" min="0.1" max="2.5" step="0.01" value="1.2" />
+            </div>
+            <div id="clipCircle" class="row" style="display:none;">
+              <label>Radius</label>
+              <input id="clipRadius" type="range" min="0.1" max="2.0" step="0.01" value="0.9" />
+            </div>
+          </details>
           <div class="row">
             <label>Wireframe</label>
             <input id="wireframe" type="checkbox" />

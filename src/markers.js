@@ -13,8 +13,10 @@ export class MarkerLayer {
     el.style.width = `${size}px`; el.style.height = `${size}px`;
     el.style.background = hexToRgba(color, alpha);
     el.style.boxShadow = '0 0 0 1px #fff, 0 0 8px rgba(0,0,0,0.3)';
+    // ensure outline appears for clip-path shapes as well
+    el.style.filter = 'drop-shadow(0 0 0 white) drop-shadow(0 0 6px rgba(0,0,0,0.35))';
     this.container.appendChild(el);
-    this.markers.push({ position: position.clone(), el, size, color, alpha });
+    this.markers.push({ position: position.clone(), el, size, color, alpha, sx:0, sy:0 });
   }
 
   clear() {
@@ -29,8 +31,25 @@ export class MarkerLayer {
       const x = (p.x * 0.5 + 0.5) * width;
       const y = ( -p.y * 0.5 + 0.5) * height;
       m.el.style.left = `${x}px`; m.el.style.top = `${y}px`;
+      m.sx = x; m.sy = y;
       m.el.style.display = p.z < 1 ? 'block' : 'none';
     }
+  }
+
+  removeNearestAt(clientX, clientY, maxDist=20) {
+    if (!this.markers.length) return false;
+    let best = -1, bestD = maxDist*maxDist;
+    for (let i=0;i<this.markers.length;i++) {
+      const m = this.markers[i];
+      const dx = m.sx - clientX, dy = m.sy - clientY; const d = dx*dx + dy*dy;
+      if (d <= bestD) { bestD = d; best = i; }
+    }
+    if (best >= 0) {
+      this.markers[best].el.remove();
+      this.markers.splice(best,1);
+      return true;
+    }
+    return false;
   }
 
   setVisible(v) {
