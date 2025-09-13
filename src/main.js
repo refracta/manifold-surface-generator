@@ -427,6 +427,7 @@ function buildPresetParamsUI(presetName) {
     row.appendChild(input);
     // Randomize checkbox per parameter (default: all checked except Noise)
     const rand = document.createElement('input'); rand.type = 'checkbox'; rand.id = `rand_${c.key}`; rand.checked = (c.key.toLowerCase() !== 'noise');
+    rand.addEventListener('change', scheduleUpdateURL);
     const randLabel = document.createElement('span'); randLabel.textContent = 'Rnd'; randLabel.style.fontSize = '12px';
     const wrap = document.createElement('div'); wrap.style.display = 'flex'; wrap.style.alignItems = 'center'; wrap.style.gap = '4px'; wrap.appendChild(randLabel); wrap.appendChild(rand);
     row.appendChild(wrap);
@@ -575,7 +576,13 @@ function snapshotConfig() {
   };
   // preset specific values
   const def = SurfacePresets[cfg.preset];
-  if (def) for (const c of def.controls) cfg.presetParams[c.key] = params[c.key];
+  if (def) {
+    cfg.presetRand = {};
+    for (const c of def.controls) {
+      cfg.presetParams[c.key] = params[c.key];
+      const cb = document.getElementById(`rand_${c.key}`); if (cb) cfg.presetRand[c.key] = !!cb.checked;
+    }
+  }
   return cfg;
 }
 
@@ -621,6 +628,9 @@ function applyConfig(diff) {
   if (diff.scale) { document.getElementById('scale').value = diff.scale; params.scale = diff.scale; }
   if (diff.presetParams) {
     for (const [k,v] of Object.entries(diff.presetParams)) { params[k] = v; const el = document.getElementById(`param_${k}`); if (el) el.value = v; }
+  }
+  if (diff.presetRand) {
+    for (const [k,v] of Object.entries(diff.presetRand)) { const el = document.getElementById(`rand_${k}`); if (el) el.checked = !!v; }
   }
   if (diff.camera) {
     const c = diff.camera;
