@@ -377,15 +377,17 @@ function toLine2(bufferGeo, { style, color, alpha, width, depthTest=true }) {
   const densified = densifyPositions(positions, Math.max(1, Math.ceil(width * 0.6)));
   const geo = new LineGeometry();
   geo.setPositions(Array.from(densified));
+  const isSolid = (style === 'solid');
   const mat = new LineMaterial({
     color: color.getHex(), transparent: alpha < 1, opacity: alpha, linewidth: width,
-    dashed: style !== 'solid', dashSize: style==='dotted'?0.05:0.14, gapSize: style==='dotted'?0.12:0.06,
+    dashed: !isSolid, dashSize: style==='dotted'?0.05:0.14, gapSize: style==='dotted'?0.12:0.06,
   });
   mat.depthTest = depthTest; // true for geodesics, false for overlay boundary
-  mat.alphaToCoverage = true;
+  mat.depthWrite = depthTest;
+  mat.alphaToCoverage = false; // avoid dotted appearance on some GPUs
   mat.resolution.set(renderer.domElement.clientWidth, renderer.domElement.clientHeight);
   const line = new Line2(geo, mat);
-  if (style !== 'solid') line.computeLineDistances();
+  if (!isSolid) line.computeLineDistances();
   return line;
 }
 
