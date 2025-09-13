@@ -337,4 +337,39 @@ function buildPresetParamsUI(presetName) {
     row.appendChild(input);
     container.appendChild(row);
   }
+  // Randomize button
+  const row = document.createElement('div'); row.className = 'row';
+  const spacer = document.createElement('div'); spacer.style.width = '90px'; row.appendChild(spacer);
+  const btn = document.createElement('button'); btn.textContent = 'Randomize'; btn.id = 'randomPreset';
+  btn.addEventListener('click', () => randomizeCurrentPreset());
+  row.appendChild(btn);
+  container.appendChild(row);
+}
+
+function randomizeCurrentPreset() {
+  const def = SurfacePresets[params.type]; if (!def) return;
+  for (const c of def.controls) {
+    const min = c.min ?? 0; const max = c.max ?? 1; const step = c.step ?? 0.01;
+    let value;
+    if (c.type === 'number' && step >= 1) {
+      const k = Math.floor(Math.random() * (Math.floor((max-min)/step)+1));
+      value = min + k*step;
+    } else {
+      const steps = Math.max(1, Math.round((max - min) / step));
+      const k = Math.floor(Math.random() * (steps + 1));
+      value = min + k * step;
+    }
+    params[c.key] = value;
+    const input = document.getElementById(`param_${c.key}`); if (input) input.value = String(value);
+  }
+  // If mountains preset, reset centers when bumpCount/seed change
+  if (params.type === 'mountains') {
+    if (def.controls.find(cc => cc.key === 'seed')) {
+      params.seed = Math.floor(Math.random() * 10000);
+      const seedInput = document.getElementById('param_seed'); if (seedInput) seedInput.value = String(params.seed);
+    }
+    delete params._centers; // force recompute
+  }
+  regenerateSurface();
+  updateColors();
 }
