@@ -3,7 +3,7 @@ import { OrbitControls } from 'https://unpkg.com/three@0.160.0/examples/jsm/cont
 import { GLTFExporter } from 'https://unpkg.com/three@0.160.0/examples/jsm/exporters/GLTFExporter.js';
 import { OBJExporter } from 'https://unpkg.com/three@0.160.0/examples/jsm/exporters/OBJExporter.js';
 
-import { buildSurface, colorizeGeometry, SurfacePresets, createSurfaceParams, setClip } from './surface.js';
+import { buildSurface, colorizeGeometry, SurfacePresets, createSurfaceParams, setClip, makeLineClippable, setLineClip } from './surface.js';
 import { buildIsoGrid, buildEdgeShortestPath, buildParamStraight } from './geodesic.js';
 import { MarkerLayer } from './markers.js';
 
@@ -77,6 +77,8 @@ function rebuildGeodesics() {
         scale: 1,
       });
     }
+    makeLineClippable(material, surfaceState.mesh);
+    setLineClip(material, params.clip, params.scale);
     const line = new THREE.Line(geo, material);
     line.computeLineDistances();
     geodesicGroup.add(line);
@@ -159,6 +161,11 @@ function updateClip() {
   const radius = parseFloat(document.getElementById('clipRadius').value);
   params.clip = { mode, rectW, rectH, radius };
   if (surfaceState) { setClip(surfaceState.mesh.material, params.clip, params.scale); }
+  geodesicGroup.traverse(obj => {
+    if (obj.isLine && obj.material && obj.material.userData && obj.material.userData.clipUniforms) {
+      setLineClip(obj.material, params.clip, params.scale);
+    }
+  });
 }
 
 document.getElementById('clipMode').addEventListener('change', () => {
@@ -189,6 +196,8 @@ document.getElementById('addPath').onclick = () => {
   const mat = style === 'solid'
     ? new THREE.LineBasicMaterial({ color: color.getHex(), transparent: alpha < 1, opacity: alpha })
     : new THREE.LineDashedMaterial({ color: color.getHex(), transparent: alpha < 1, opacity: alpha, dashSize: style==='dotted'?0.05:0.14, gapSize: style==='dotted'?0.12:0.06});
+  makeLineClippable(mat, surfaceState.mesh);
+  setLineClip(mat, params.clip, params.scale);
   const line = new THREE.Line(geo, mat); line.computeLineDistances();
   geodesicGroup.add(line);
   pickedStart = pickedEnd = null; pickingStart = pickingEnd = false;

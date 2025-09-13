@@ -333,3 +333,42 @@ export function setClip(material, clip, scale=1) {
     const r = (clip.radius ?? 1) * scale; u.uCircle.value.set(0,0,r); u.uClipMode.value = 2;
   }
 }
+
+// Attach the same clip logic to line materials so geodesics respect masks
+export function makeLineClippable(material, surfaceMesh) {
+  const uniforms = {
+    uClipMode: { value: 0 },
+    uRect: { value: new THREE.Vector4(-1,1,-1,1) },
+    uCircle: { value: new THREE.Vector3(0,0,1) },
+    uSurfaceMatrixInv: { value: new THREE.Matrix4() },
+  };
+  surfaceMesh.updateWorldMatrix(true,false);
+  uniforms.uSurfaceMatrixInv.value.copy(surfaceMesh.matrixWorld).invert();
+
+  material.onBeforeCompile = (shader) => {
+    shader.uniforms.uClipMode = uniforms.uClipMode;
+    shader.uniforms.uRect = uniforms.uRect;
+    shader.uniforms.uCircle = uniforms.uCircle;
+    shader.uniforms.uSurfaceMatrixInv = uniforms.uSurfaceMatrixInv;
+
+    shader.vertexShader = `varying vec3 vSurfLocal;\nuniform mat4 uSurfaceMatrixInv;\n` + shader.vertexShader;
+    shader.vertexShader = shader.vertexShader.replace('void main() {', 'void main() {\n  vec4 worldPos = modelMatrix * vec4(position,1.0);\n  vSurfLocal = (uSurfaceMatrixInv * worldPos).xyz;');
+
+    const inject = `\nuniform int uClipMode;\nuniform vec4 uRect;\nuniform vec3 uCircle;\nvarying vec3 vSurfLocal;\n`;
+    shader.fragmentShader = inject + shader.fragmentShader;
+    const check = `\n  if (uClipMode == 1) {\n    if (vSurfLocal.x < uRect.x || vSurfLocal.x > uRect.y || vSurfLocal.z < uRect.z || vSurfLocal.z > uRect.w) discard;\n  } else if (uClipMode == 2) {\n    if (distance(vec2(vSurfLocal.x, vSurfLocal.z), uCircle.xy) > uCircle.z) discard;\n  }\n`;
+    shader.fragmentShader = shader.fragmentShader.replace('void main() {', 'void main() {'+check);
+  };
+  material.userData.clipUniforms = uniforms;
+}
+
+export function setLineClip(material, clip, scale=1) {
+  const u = material.userData.clipUniforms; if (!u) return;
+  if (!clip || clip.mode === 'none') { u.uClipMode.value = 0; return; }
+  if (clip.mode === 'rect') {
+    const w = (clip.rectW ?? 1) * 0.5 * scale; const h = (clip.rectH ?? 1) * 0.5 * scale;
+    u.uRect.value.set(-w, w, -h, h); u.uClipMode.value = 1;
+  } else if (clip.mode === 'circle') {
+    const r = (clip.radius ?? 1) * scale; u.uCircle.value.set(0,0,r); u.uClipMode.value = 2;
+  }
+}
