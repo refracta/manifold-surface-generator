@@ -12,6 +12,7 @@ body { font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "
 .panel summary { cursor: pointer; font-weight: 600; }
 .row { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
 .row label { width: 90px; font-size: 13px; color: #333; }
+.row input[type="range"] { flex: 1; }
 .column { display: flex; flex-direction: column; gap: 8px; }
 .panel input[type="number"] { width: 70px; }
 
