@@ -276,6 +276,10 @@ document.getElementById('resetAll').onclick = () => {
   camera.position.copy(defaultCamPos);
   controls.target.set(0,0,0); controls.update();
   applyConfig(DEFAULTS);
+  // Explicitly remove cfg from URL immediately
+  const sp = new URLSearchParams(window.location.search); sp.delete('cfg');
+  const url = window.location.pathname + (sp.toString()?('?'+sp.toString()):'');
+  window.history.replaceState({}, '', url);
   scheduleUpdateURL();
 };
 
