@@ -2,6 +2,9 @@ import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
 import { OrbitControls } from 'https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js';
 import { GLTFExporter } from 'https://unpkg.com/three@0.160.0/examples/jsm/exporters/GLTFExporter.js';
 import { OBJExporter } from 'https://unpkg.com/three@0.160.0/examples/jsm/exporters/OBJExporter.js';
+import { Line2 } from 'https://unpkg.com/three@0.160.0/examples/jsm/lines/Line2.js';
+import { LineMaterial } from 'https://unpkg.com/three@0.160.0/examples/jsm/lines/LineMaterial.js';
+import { LineGeometry } from 'https://unpkg.com/three@0.160.0/examples/jsm/lines/LineGeometry.js';
 
 import { buildSurface, colorizeGeometry, SurfacePresets, createSurfaceParams, setClip, makeLineClippable, setLineClip } from './surface.js';
 import { buildIsoGrid, buildEdgeShortestPath, buildParamStraight } from './geodesic.js';
@@ -35,7 +38,9 @@ scene.add(dir);
 let surfaceGroup = null; // contains mesh and optional lines
 let surfaceState = null; // geometry bookkeeping
 let geodesicGroup = new THREE.Group();
+let clipLinesGroup = new THREE.Group();
 scene.add(geodesicGroup);
+scene.add(clipLinesGroup);
 
 let params = createSurfaceParams('ripple'); // start preset
 
@@ -51,10 +56,12 @@ function regenerateSurface() {
 
 function rebuildGeodesics() {
   geodesicGroup.clear();
+  clipLinesGroup.clear();
   if (!document.getElementById('geoEnable').checked) return;
   const style = document.getElementById('geoStyle').value;
   const color = new THREE.Color(document.getElementById('geoColor').value);
   const alpha = parseFloat(document.getElementById('geoAlpha').value);
+  const width = parseFloat(document.getElementById('geoWidth').value);
   const count = parseInt(document.getElementById('geoCount').value, 10);
   const method = document.getElementById('geoMethod').value;
 
@@ -65,23 +72,24 @@ function rebuildGeodesics() {
     lines = buildParamStraight(surfaceState, count);
   }
   for (const geo of lines) {
-    let material;
-    if (style === 'solid') {
-      material = new THREE.LineBasicMaterial({ color: color.getHex(), transparent: alpha < 1, opacity: alpha });
-    } else {
-      material = new THREE.LineDashedMaterial({
-        color: color.getHex(), transparent: alpha < 1, opacity: alpha,
-        linewidth: 1,
-        dashSize: style === 'dotted' ? 0.05 : 0.14,
-        gapSize: style === 'dotted' ? 0.12 : 0.06,
-        scale: 1,
-      });
-    }
-    makeLineClippable(material, surfaceState.mesh);
-    setLineClip(material, params.clip, params.scale);
-    const line = new THREE.Line(geo, material);
-    line.computeLineDistances();
+    const line = toLine2(geo, { style, color, alpha, width });
+    makeLineClippable(line.material, surfaceState.mesh);
+    setLineClip(line.material, params.clip, params.scale);
     geodesicGroup.add(line);
+  }
+
+  // Mask overlay lines (outside masked region) if enabled
+  if (document.getElementById('clipLinesEnable').checked && params.clip && params.clip.mode !== 'none') {
+    const cstyle = document.getElementById('clipStyle').value;
+    const ccolor = new THREE.Color(document.getElementById('clipColor').value);
+    const calpha = parseFloat(document.getElementById('clipAlpha').value);
+    const cwidth = parseFloat(document.getElementById('clipWidth').value);
+    for (const geo of lines) {
+      const line = toLine2(geo, { style: cstyle, color: ccolor, alpha: calpha, width: cwidth });
+      makeLineClippable(line.material, surfaceState.mesh, true /* invert */);
+      setLineClip(line.material, params.clip, params.scale, true);
+      clipLinesGroup.add(line);
+    }
   }
   // Edge‑shortest path added interactively via buttons
 }
@@ -166,6 +174,13 @@ function updateClip() {
       setLineClip(obj.material, params.clip, params.scale);
     }
   });
+  clipLinesGroup.traverse(obj => {
+    if (obj.isLine2 || obj.isLine) {
+      if (obj.material && obj.material.userData && obj.material.userData.clipUniforms) {
+        setLineClip(obj.material, params.clip, params.scale, true);
+      }
+    }
+  });
 }
 
 document.getElementById('clipMode').addEventListener('change', () => {
@@ -179,9 +194,14 @@ document.getElementById('clipMode').addEventListener('change', () => {
 document.getElementById('geoEnable').addEventListener('change', rebuildGeodesics);
 document.getElementById('geoMethod').addEventListener('change', rebuildGeodesics);
 document.getElementById('geoCount').addEventListener('change', rebuildGeodesics);
+document.getElementById('geoWidth').addEventListener('input', rebuildGeodesics);
 document.getElementById('geoStyle').addEventListener('change', rebuildGeodesics);
 document.getElementById('geoColor').addEventListener('input', rebuildGeodesics);
 document.getElementById('geoAlpha').addEventListener('input', rebuildGeodesics);
+
+['clipLinesEnable','clipWidth','clipStyle','clipColor','clipAlpha'].forEach(id => {
+  const el = document.getElementById(id); if (el) el.addEventListener('input', rebuildGeodesics);
+});
 
 // Interactive edge-shortest path
 let pickingStart = false, pickingEnd = false; let pickedStart = null, pickedEnd = null;
@@ -193,12 +213,10 @@ document.getElementById('addPath').onclick = () => {
   const style = document.getElementById('geoStyle').value;
   const color = new THREE.Color(document.getElementById('geoColor').value);
   const alpha = parseFloat(document.getElementById('geoAlpha').value);
-  const mat = style === 'solid'
-    ? new THREE.LineBasicMaterial({ color: color.getHex(), transparent: alpha < 1, opacity: alpha })
-    : new THREE.LineDashedMaterial({ color: color.getHex(), transparent: alpha < 1, opacity: alpha, dashSize: style==='dotted'?0.05:0.14, gapSize: style==='dotted'?0.12:0.06});
-  makeLineClippable(mat, surfaceState.mesh);
-  setLineClip(mat, params.clip, params.scale);
-  const line = new THREE.Line(geo, mat); line.computeLineDistances();
+  const width = parseFloat(document.getElementById('geoWidth').value);
+  const line = toLine2(geo, { style, color, alpha, width });
+  makeLineClippable(line.material, surfaceState.mesh);
+  setLineClip(line.material, params.clip, params.scale);
   geodesicGroup.add(line);
   pickedStart = pickedEnd = null; pickingStart = pickingEnd = false;
 };
@@ -271,6 +289,9 @@ function renderOnce() { renderer.render(scene, camera); }
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
+  // update resolution for fat line materials
+  const w = renderer.domElement.clientWidth, h = renderer.domElement.clientHeight;
+  [...geodesicGroup.children, ...clipLinesGroup.children].forEach(obj => { if (obj.material && obj.material.resolution) obj.material.resolution.set(w,h); });
 });
 
 // Export helpers
@@ -349,6 +370,19 @@ function buildPresetParamsUI(presetName) {
   btn.addEventListener('click', () => randomizeCurrentPreset());
   row.appendChild(btn);
   container.appendChild(row);
+}
+
+function toLine2(bufferGeo, { style, color, alpha, width }) {
+  const positions = bufferGeo.getAttribute('position').array;
+  const geo = new LineGeometry();
+  geo.setPositions(Array.from(positions));
+  const mat = new LineMaterial({
+    color: color.getHex(), transparent: alpha < 1, opacity: alpha, linewidth: width,
+    dashed: style !== 'solid', dashSize: style==='dotted'?0.05:0.14, gapSize: style==='dotted'?0.12:0.06,
+  });
+  mat.resolution.set(renderer.domElement.clientWidth, renderer.domElement.clientHeight);
+  const line = new Line2(geo, mat);
+  return line;
 }
 
 function randomizeCurrentPreset() {

@@ -350,12 +350,13 @@ export function setClip(material, clip, scale=1) {
 }
 
 // Attach the same clip logic to line materials so geodesics respect masks
-export function makeLineClippable(material, surfaceMesh) {
+export function makeLineClippable(material, surfaceMesh, invert=false) {
   const uniforms = {
     uClipMode: { value: 0 },
     uRect: { value: new THREE.Vector4(-1,1,-1,1) },
     uCircle: { value: new THREE.Vector3(0,0,1) },
     uSurfaceMatrixInv: { value: new THREE.Matrix4() },
+    uInvert: { value: invert ? 1 : 0 },
   };
   surfaceMesh.updateWorldMatrix(true,false);
   uniforms.uSurfaceMatrixInv.value.copy(surfaceMesh.matrixWorld).invert();
@@ -365,20 +366,22 @@ export function makeLineClippable(material, surfaceMesh) {
     shader.uniforms.uRect = uniforms.uRect;
     shader.uniforms.uCircle = uniforms.uCircle;
     shader.uniforms.uSurfaceMatrixInv = uniforms.uSurfaceMatrixInv;
+    shader.uniforms.uInvert = uniforms.uInvert;
 
     shader.vertexShader = `varying vec3 vSurfLocal;\nuniform mat4 uSurfaceMatrixInv;\n` + shader.vertexShader;
     shader.vertexShader = shader.vertexShader.replace('void main() {', 'void main() {\n  vec4 worldPos = modelMatrix * vec4(position,1.0);\n  vSurfLocal = (uSurfaceMatrixInv * worldPos).xyz;');
 
-    const inject = `\nuniform int uClipMode;\nuniform vec4 uRect;\nuniform vec3 uCircle;\nvarying vec3 vSurfLocal;\n`;
+    const inject = `\nuniform int uClipMode;\nuniform vec4 uRect;\nuniform vec3 uCircle;\nuniform int uInvert;\nvarying vec3 vSurfLocal;\n`;
     shader.fragmentShader = inject + shader.fragmentShader;
-    const check = `\n  if (uClipMode == 1) {\n    if (vSurfLocal.x < uRect.x || vSurfLocal.x > uRect.y || vSurfLocal.z < uRect.z || vSurfLocal.z > uRect.w) discard;\n  } else if (uClipMode == 2) {\n    if (distance(vec2(vSurfLocal.x, vSurfLocal.z), uCircle.xy) > uCircle.z) discard;\n  }\n`;
+    const check = `\n  if (uClipMode == 1) {\n    bool outside = (vSurfLocal.x < uRect.x || vSurfLocal.x > uRect.y || vSurfLocal.z < uRect.z || vSurfLocal.z > uRect.w);\n    if ((uInvert==0 && outside) || (uInvert==1 && !outside)) discard;\n  } else if (uClipMode == 2) {\n    bool outside = (distance(vec2(vSurfLocal.x, vSurfLocal.z), uCircle.xy) > uCircle.z);\n    if ((uInvert==0 && outside) || (uInvert==1 && !outside)) discard;\n  }\n`;
     shader.fragmentShader = shader.fragmentShader.replace('void main() {', 'void main() {'+check);
   };
   material.userData.clipUniforms = uniforms;
 }
 
-export function setLineClip(material, clip, scale=1) {
+export function setLineClip(material, clip, scale=1, invert=false) {
   const u = material.userData.clipUniforms; if (!u) return;
+  u.uInvert.value = invert ? 1 : 0;
   if (!clip || clip.mode === 'none') { u.uClipMode.value = 0; return; }
   if (clip.mode === 'rect') {
     const w = (clip.rectW ?? 1) * 0.5 * scale; const h = (clip.rectH ?? 1) * 0.5 * scale;
