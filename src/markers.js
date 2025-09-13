@@ -13,8 +13,12 @@ export class MarkerLayer {
     el.style.width = `${size}px`; el.style.height = `${size}px`;
     el.style.background = hexToRgba(color, alpha);
     el.style.boxShadow = '0 0 0 1px #fff, 0 0 8px rgba(0,0,0,0.3)';
-    // ensure outline appears for clip-path shapes as well
-    el.style.filter = 'drop-shadow(0 0 0 white) drop-shadow(0 0 6px rgba(0,0,0,0.35))';
+    // Stronger white outline for polygonal markers (triangle/pentagon)
+    if (shape === 'triangle' || shape === 'pentagon') {
+      el.style.filter = 'drop-shadow(0 0 0 #fff) drop-shadow(0 0 2px #fff) drop-shadow(0 0 8px rgba(0,0,0,0.35))';
+    } else {
+      el.style.filter = 'drop-shadow(0 0 0 #fff) drop-shadow(0 0 6px rgba(0,0,0,0.35))';
+    }
     this.container.appendChild(el);
     this.markers.push({ position: position.clone(), el, size, color, alpha, shape, sx:0, sy:0 });
   }
