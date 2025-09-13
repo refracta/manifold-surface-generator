@@ -81,14 +81,7 @@ export function clipPolylineToMask(state, clip, positions) {
     g.setAttribute('position', new THREE.BufferAttribute(positions.slice ? positions.slice() : new Float32Array(positions), 3));
     return [g];
   }
-  const scale = state.params.scale || 1;
-  const w = ((clip.rectW ?? 1) * 0.5) * scale;
-  const h = ((clip.rectH ?? 1) * 0.5) * scale;
-  const r = (clip.radius ?? 1) * scale;
-
-  function sdfRect(x, z) { return Math.max(Math.abs(x) - w, Math.abs(z) - h); }
-  function sdfCircle(x, z) { return Math.hypot(x, z) - r; }
-  const sdf = clip.mode === 'rect' ? sdfRect : sdfCircle;
+  const sdf = sdfForClip(state, clip);
 
   const N = positions.length / 3;
   const segments = [];
@@ -127,6 +120,63 @@ export function clipPolylineToMask(state, clip, positions) {
   }
   pushCurr();
   return segments;
+}
+
+// Return SDF(x,z) for the given clip shape in local space
+export function sdfForClip(state, clip) {
+  if (!clip || clip.mode === 'none') return (x,z)=>-1; // always inside
+  const scale = state.params.scale || 1;
+  const w = ((clip.rectW ?? 1) * 0.5) * scale;
+  const h = ((clip.rectH ?? 1) * 0.5) * scale;
+  const r = (clip.radius ?? 1) * scale;
+  if (clip.mode === 'rect') return (x,z)=>Math.max(Math.abs(x)-w, Math.abs(z)-h);
+  return (x,z)=>Math.hypot(x,z)-r;
+}
+
+// Estimate the param spans [u0,u1], [v0,v1] of the mask using the center row/column
+export function estimateParamSpans(state, clip) {
+  const { resU, resV } = state;
+  if (!clip || clip.mode === 'none') return { u:[0,1], v:[0,1] };
+  const pos = state.geometry.attributes.position;
+  const sdf = sdfForClip(state, clip);
+
+  function spanAlongU() {
+    const j0 = Math.round(resV/2);
+    const idx = (i)=> j0*(resU+1)+i;
+    let sPrev = sdf(pos.getX(idx(0)), pos.getZ(idx(0)));
+    let inside = sPrev <= 0; let u0 = null, u1 = null;
+    for (let i=0;i<resU;i++) {
+      const s0 = sPrev; const s1 = sdf(pos.getX(idx(i+1)), pos.getZ(idx(i+1)));
+      if (!inside && s1 <= 0) { // outside -> inside
+        const t = s0 / (s0 - s1 + 1e-12); u0 = (i + t) / resU; inside = true;
+      }
+      if (inside && s1 > 0) { // inside -> outside
+        const t = s0 / (s0 - s1 + 1e-12); u1 = (i + t) / resU; inside = false; break;
+      }
+      sPrev = s1;
+    }
+    if (inside) u1 = 1; // until end
+    if (u0 === null) return [0,1];
+    return [Math.max(0,u0), Math.min(1,u1 ?? 1)];
+  }
+
+  function spanAlongV() {
+    const i0 = Math.round(resU/2);
+    const idx = (j)=> j*(resU+1)+i0;
+    let sPrev = sdf(pos.getX(idx(0)), pos.getZ(idx(0)));
+    let inside = sPrev <= 0; let v0 = null, v1 = null;
+    for (let j=0;j<resV;j++) {
+      const s0 = sPrev; const s1 = sdf(pos.getX(idx(j+1)), pos.getZ(idx(j+1)));
+      if (!inside && s1 <= 0) { const t = s0/(s0 - s1 + 1e-12); v0 = (j + t) / resV; inside = true; }
+      if (inside && s1 > 0) { const t = s0/(s0 - s1 + 1e-12); v1 = (j + t) / resV; inside = false; break; }
+      sPrev = s1;
+    }
+    if (inside) v1 = 1;
+    if (v0 === null) return [0,1];
+    return [Math.max(0,v0), Math.min(1,v1 ?? 1)];
+  }
+
+  return { u: spanAlongU(), v: spanAlongV() };
 }
 
 function joinSegments(segs) {

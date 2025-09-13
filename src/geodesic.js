@@ -1,16 +1,21 @@
 import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
 
 // Build iso‑parameter grid lines as on‑surface polylines
-export function buildIsoGrid(state, count = 8) {
+export function buildIsoGrid(state, count = 8, span) {
   const { resU, resV, params } = state;
   const geos = [];
   const totU = count, totV = count;
-  // u‑constant lines
+  const u0 = span?.u ? span.u[0] : 0; const u1 = span?.u ? span.u[1] : 1;
+  const v0 = span?.v ? span.v[0] : 0; const v1 = span?.v ? span.v[1] : 1;
+  const usedI = new Set(); const usedJ = new Set();
+  // u‑constant lines within [u0,u1]
   for (let k=1;k<=totU;k++) {
-    const u = k/(totU+1);
+    const u = u0 + (k/(totU+1)) * (u1 - u0);
     const positions = [];
+    const iIdx = Math.max(0, Math.min(resU, Math.round(u*resU)));
+    if (usedI.has(iIdx)) continue; usedI.add(iIdx);
     for (let j=0;j<=resV;j++) {
-      const idx = j*(resU+1) + Math.round(u*resU);
+      const idx = j*(resU+1) + iIdx;
       const x = state.geometry.attributes.position.getX(idx);
       const y = state.geometry.attributes.position.getY(idx);
       const z = state.geometry.attributes.position.getZ(idx);
@@ -20,12 +25,14 @@ export function buildIsoGrid(state, count = 8) {
     geo.setAttribute('position', new THREE.Float32BufferAttribute(positions,3));
     geos.push(geo);
   }
-  // v‑constant lines
+  // v‑constant lines within [v0,v1]
   for (let k=1;k<=totV;k++) {
-    const v = k/(totV+1);
+    const v = v0 + (k/(totV+1)) * (v1 - v0);
     const positions = [];
+    const jIdx = Math.max(0, Math.min(resV, Math.round(v*resV)));
+    if (usedJ.has(jIdx)) continue; usedJ.add(jIdx);
     for (let i=0;i<=resU;i++) {
-      const idx = Math.round(v*resV)*(resU+1) + i;
+      const idx = jIdx*(resU+1) + i;
       const x = state.geometry.attributes.position.getX(idx);
       const y = state.geometry.attributes.position.getY(idx);
       const z = state.geometry.attributes.position.getZ(idx);
@@ -39,10 +46,12 @@ export function buildIsoGrid(state, count = 8) {
 }
 
 // Build a path by walking straight in parameter space from center
-export function buildParamStraight(state, count = 6) {
+export function buildParamStraight(state, count = 6, span) {
   const geos = [];
   const { resU, resV } = state;
-  const centerI = Math.floor(resU/2), centerJ = Math.floor(resV/2);
+  const centerU = span?.u ? (span.u[0]+span.u[1])/2 : 0.5;
+  const centerV = span?.v ? (span.v[0]+span.v[1])/2 : 0.5;
+  const centerI = Math.round(centerU*resU), centerJ = Math.round(centerV*resV);
   const dirs = [];
   for (let k=0;k<count;k++) {
     const a = (k / count) * Math.PI * 2;
@@ -114,4 +123,3 @@ function nearestIndex(state, pick) {
   const i = Math.round(u*resU), j = Math.round(v*resV);
   return j*(resU+1)+i;
 }
-

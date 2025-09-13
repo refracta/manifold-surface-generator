@@ -8,7 +8,7 @@ import { LineGeometry } from 'https://unpkg.com/three@0.160.0/examples/jsm/lines
 
 import { buildSurface, colorizeGeometry, SurfacePresets, createSurfaceParams, setClip, makeLineClippable, setLineClip } from './surface.js';
 import { buildIsoGrid, buildEdgeShortestPath, buildParamStraight } from './geodesic.js';
-import { buildClipBoundary, buildDomainBoundary, clipPolylineToMask } from './boundary.js';
+import { buildClipBoundary, buildDomainBoundary, clipPolylineToMask, estimateParamSpans } from './boundary.js';
 import { MarkerLayer } from './markers.js';
 
 const container = document.getElementById('canvas-container');
@@ -70,10 +70,14 @@ function rebuildGeodesics() {
   const method = document.getElementById('geoMethod').value;
 
   let lines = [];
+  let span = null;
+  if (params.clip && params.clip.mode !== 'none') {
+    span = estimateParamSpans(surfaceState, params.clip);
+  }
   if (method === 'grid') {
-    lines = buildIsoGrid(surfaceState, count);
+    lines = buildIsoGrid(surfaceState, count, span);
   } else if (method === 'param-straight') {
-    lines = buildParamStraight(surfaceState, count);
+    lines = buildParamStraight(surfaceState, count, span);
   }
   for (const geo of lines) {
     const pos = geo.getAttribute('position').array;
