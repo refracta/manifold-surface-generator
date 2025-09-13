@@ -4,6 +4,7 @@ export class MarkerLayer {
   constructor(container) {
     this.container = container; // DOM overlay container
     this.markers = []; // { position: THREE.Vector3, el: HTMLElement }
+    this.visible = true;
   }
 
   addMarker(position, { shape='circle', size=14, color='#e53935' }={}) {
@@ -30,5 +31,8 @@ export class MarkerLayer {
       m.el.style.display = p.z < 1 ? 'block' : 'none';
     }
   }
-}
 
+  setVisible(v) {
+    this.visible = v; this.container.style.display = v ? 'block' : 'none';
+  }
+}

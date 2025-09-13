@@ -167,6 +167,7 @@ const markerShape = document.getElementById('markerShape');
 const markerSize = document.getElementById('markerSize');
 const markerColor = document.getElementById('markerColor');
 document.getElementById('clearMarkers').onclick = () => markerLayer.clear();
+markersEnable.addEventListener('change', () => markerLayer.setVisible(markersEnable.checked));
 
 // Export
 document.getElementById('savePng').onclick = savePNG;
@@ -251,4 +252,3 @@ addStopRow(1, '#ff9aa2');
 regenerateSurface();
 updateColors();
 animate();
-
