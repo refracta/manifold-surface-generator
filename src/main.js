@@ -222,6 +222,8 @@ document.getElementById('resetCamera').onclick = () => { camera.position.copy(de
 const raycaster = new THREE.Raycaster();
 const pointer = new THREE.Vector2();
 renderer.domElement.addEventListener('pointerdown', (ev) => {
+  // Only left-button creates markers or picks geodesic endpoints
+  if (ev.button !== 0) return;
   const rect = renderer.domElement.getBoundingClientRect();
   pointer.x = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
   pointer.y = -((ev.clientY - rect.top) / rect.height) * 2 + 1;
