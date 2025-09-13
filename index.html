@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>manifold-surface-generator</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div id="app">
+      <div id="canvas-container"></div>
+      <div id="overlay-panel" class="panel">
+        <h3>Manifold Surface Generator</h3>
+        <details open>
+          <summary>Surface</summary>
+          <div class="row">
+            <label>Preset</label>
+            <select id="preset">
+              <option value="ripple">Ripple Patch</option>
+              <option value="saddle">Saddle</option>
+              <option value="paraboloid">Paraboloid</option>
+              <option value="swiss">Swiss Roll</option>
+              <option value="bumps">Gaussian Bumps</option>
+            </select>
+          </div>
+          <div class="row">
+            <label>Resolution</label>
+            <input id="resU" type="number" min="8" max="512" step="1" value="80" /> ×
+            <input id="resV" type="number" min="8" max="512" step="1" value="60" />
+          </div>
+          <div class="row">
+            <label>Scale</label>
+            <input id="scale" type="range" min="0.5" max="3" step="0.1" value="1" />
+          </div>
+          <div class="row">
+            <label>Amplitude</label>
+            <input id="amplitude" type="range" min="0" max="1.5" step="0.01" value="0.4" />
+          </div>
+          <div class="row">
+            <label>Frequency</label>
+            <input id="frequency" type="range" min="0.2" max="8" step="0.1" value="2.5" />
+          </div>
+          <div class="row">
+            <label>Noise</label>
+            <input id="noise" type="range" min="0" max="0.6" step="0.01" value="0.05" />
+          </div>
+          <div class="row">
+            <label>Wireframe</label>
+            <input id="wireframe" type="checkbox" />
+          </div>
+        </details>
+
+        <details open>
+          <summary>Colors</summary>
+          <div class="row">
+            <label>Background</label>
+            <input id="bgColor" type="color" value="#f5f5f8" />
+          </div>
+          <div class="row">
+            <label>Color Mode</label>
+            <select id="colorMode">
+              <option value="solid">Solid</option>
+              <option value="gradient">Gradient</option>
+            </select>
+          </div>
+          <div id="solidRow" class="row">
+            <label>Surface</label>
+            <input id="solidColor" type="color" value="#a8c7ff" />
+          </div>
+          <div id="gradientEditor" class="column" style="display:none;">
+            <div class="row">
+              <label>Axis</label>
+              <select id="gradAxis">
+                <option value="u">U</option>
+                <option value="v">V</option>
+                <option value="height">Height</option>
+              </select>
+            </div>
+            <div id="stops"></div>
+            <button id="addStop">Add Stop</button>
+          </div>
+        </details>
+
+        <details open>
+          <summary>Geodesics</summary>
+          <div class="row">
+            <label>Enable</label>
+            <input id="geoEnable" type="checkbox" checked />
+          </div>
+          <div class="row">
+            <label>Method</label>
+            <select id="geoMethod">
+              <option value="grid">Iso-Grid</option>
+              <option value="edge-shortest">Edge Shortest Path</option>
+              <option value="param-straight">Param Straight</option>
+            </select>
+          </div>
+          <div class="row">
+            <label>Count</label>
+            <input id="geoCount" type="number" min="1" max="50" step="1" value="8" />
+          </div>
+          <div class="row">
+            <label>Style</label>
+            <select id="geoStyle">
+              <option value="solid">Solid</option>
+              <option value="dashed">Dashed</option>
+              <option value="dotted">Dotted</option>
+            </select>
+          </div>
+          <div class="row">
+            <label>Color</label>
+            <input id="geoColor" type="color" value="#333333" />
+          </div>
+          <div class="row">
+            <button id="pickStart">Pick Start</button>
+            <button id="pickEnd">Pick End</button>
+            <button id="addPath">Add Path</button>
+          </div>
+          <div class="row">
+            <button id="clearGeodesics">Clear Geodesics</button>
+          </div>
+        </details>
+
+        <details>
+          <summary>Markers</summary>
+          <div class="row">
+            <label>Enable</label>
+            <input id="markersEnable" type="checkbox" checked />
+          </div>
+          <div class="row">
+            <label>Shape</label>
+            <select id="markerShape">
+              <option value="circle">Circle</option>
+              <option value="triangle">Triangle</option>
+              <option value="square">Square</option>
+              <option value="pentagon">Pentagon</option>
+            </select>
+          </div>
+          <div class="row">
+            <label>Size</label>
+            <input id="markerSize" type="range" min="6" max="40" step="1" value="14" />
+          </div>
+          <div class="row">
+            <label>Color</label>
+            <input id="markerColor" type="color" value="#e53935" />
+          </div>
+          <div class="row">
+            <button id="clearMarkers">Clear Markers</button>
+          </div>
+        </details>
+
+        <details open>
+          <summary>Export</summary>
+          <div class="row">
+            <button id="savePng">Save PNG</button>
+            <button id="exportGLB">Export GLB</button>
+            <button id="exportOBJ">Export OBJ</button>
+            <button id="resetCamera">Reset Camera</button>
+          </div>
+        </details>
+      </div>
+      <div id="marker-layer" class="marker-layer"></div>
+    </div>
+
+    <script type="module" src="./src/main.js"></script>
+  </body>
+  </html>
+
