@@ -159,7 +159,7 @@ function updateClip() {
   params.clip = { mode, rectW, rectH, radius };
   if (surfaceState) { setClip(surfaceState.mesh.material, params.clip, params.scale); }
   geodesicGroup.traverse(obj => {
-    if (obj.isLine && obj.material && obj.material.userData && obj.material.userData.clipUniforms) {
+    if (obj.material && obj.material.userData && obj.material.userData.clipUniforms) {
       setLineClip(obj.material, params.clip, params.scale);
     }
   });
