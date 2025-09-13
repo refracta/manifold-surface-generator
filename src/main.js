@@ -174,6 +174,8 @@ function updateClip() {
       }
     }
   });
+  // Regenerate geodesics so their polylines are CPU‑clipped to new mask
+  rebuildGeodesics();
   rebuildBoundaryLines();
 }
 
