@@ -53,6 +53,7 @@ function regenerateSurface() {
   scene.add(surfaceGroup);
   updateClip();
   rebuildGeodesics();
+  rebuildBoundaryLines();
 }
 
 function rebuildGeodesics() {
@@ -78,25 +79,7 @@ function rebuildGeodesics() {
     setLineClip(line.material, params.clip, params.scale);
     geodesicGroup.add(line);
   }
-
-  // Mask overlay lines (outside masked region) if enabled
-  if (document.getElementById('clipLinesEnable').checked) {
-    const cstyle = document.getElementById('clipStyle').value;
-    const ccolor = new THREE.Color(document.getElementById('clipColor').value);
-    const calpha = parseFloat(document.getElementById('clipAlpha').value);
-    const cwidth = parseFloat(document.getElementById('clipWidth').value);
-    let boundaryGeos;
-    if (params.clip && params.clip.mode !== 'none') {
-      boundaryGeos = buildClipBoundary(surfaceState, params.clip);
-    } else {
-      boundaryGeos = buildDomainBoundary(surfaceState);
-    }
-    for (const g of boundaryGeos) {
-      const line = toLine2(g, { style: cstyle, color: ccolor, alpha: calpha, width: cwidth });
-      // No need to make clippable/invert: boundary is already the curve itself
-      clipLinesGroup.add(line);
-    }
-  }
+  // Boundary lines handled separately
   // Edge‑shortest path added interactively via buttons
 }
 
@@ -187,6 +170,7 @@ function updateClip() {
       }
     }
   });
+  rebuildBoundaryLines();
 }
 
 function overlayClipParams() {
@@ -216,7 +200,7 @@ document.getElementById('geoColor').addEventListener('input', rebuildGeodesics);
 document.getElementById('geoAlpha').addEventListener('input', rebuildGeodesics);
 
 ['clipLinesEnable','clipWidth','clipStyle','clipColor','clipAlpha'].forEach(id => {
-  const el = document.getElementById(id); if (el) el.addEventListener('input', rebuildGeodesics);
+  const el = document.getElementById(id); if (el) el.addEventListener('input', rebuildBoundaryLines);
 });
 
 // Interactive edge-shortest path
