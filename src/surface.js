@@ -3,7 +3,7 @@ import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
 // Preset definitions (only show relevant controls per preset)
 export const SurfacePresets = {
   ripple: {
-    defaults: { resU: 100, resV: 80, scale: 1, amplitude: 0.4, frequency: 2.5, noise: 0.05 },
+    defaults: { resU: 100, resV: 80, scale: 1, amplitude: 0.4, frequency: 2.5, noise: 0.0 },
     controls: [
       { key: 'amplitude', label: 'Amplitude', type: 'range', min: 0, max: 1.5, step: 0.01 },
       { key: 'frequency', label: 'Frequency', type: 'range', min: 0.2, max: 8, step: 0.1 },
@@ -11,23 +11,24 @@ export const SurfacePresets = {
     ]
   },
   saddle: {
-    defaults: { resU: 100, resV: 80, scale: 1, amplitude: 0.5 },
-    controls: [ { key: 'amplitude', label: 'Amplitude', type: 'range', min: 0, max: 2, step: 0.01 } ]
+    defaults: { resU: 100, resV: 80, scale: 1, amplitude: 0.5, noise: 0.0 },
+    controls: [ { key: 'amplitude', label: 'Amplitude', type: 'range', min: 0, max: 2, step: 0.01 }, { key: 'noise', label: 'Noise', type: 'range', min: 0, max: 0.6, step: 0.01 } ]
   },
   paraboloid: {
-    defaults: { resU: 100, resV: 80, scale: 1, amplitude: 0.6 },
-    controls: [ { key: 'amplitude', label: 'Curvature', type: 'range', min: -2, max: 2, step: 0.01 } ]
+    defaults: { resU: 100, resV: 80, scale: 1, amplitude: 0.6, noise: 0.0 },
+    controls: [ { key: 'amplitude', label: 'Curvature', type: 'range', min: -2, max: 2, step: 0.01 }, { key: 'noise', label: 'Noise', type: 'range', min: 0, max: 0.6, step: 0.01 } ]
   },
   swiss: {
-    defaults: { resU: 180, resV: 50, scale: 1, turns: 3.5, thickness: 1.2, waviness: 0.15 },
+    defaults: { resU: 180, resV: 50, scale: 1, turns: 3.5, thickness: 1.2, waviness: 0.15, noise: 0.0 },
     controls: [
       { key: 'turns', label: 'Turns', type: 'range', min: 1, max: 6, step: 0.1 },
       { key: 'thickness', label: 'Thickness', type: 'range', min: 0.4, max: 2.0, step: 0.05 },
       { key: 'waviness', label: 'Waviness', type: 'range', min: 0, max: 0.5, step: 0.01 },
+      { key: 'noise', label: 'Noise', type: 'range', min: 0, max: 0.6, step: 0.01 },
     ]
   },
   bumps: {
-    defaults: { resU: 120, resV: 90, scale: 1, amplitude: 0.35, frequency: 2.0, noise: 0.05 },
+    defaults: { resU: 120, resV: 90, scale: 1, amplitude: 0.35, frequency: 2.0, noise: 0.0 },
     controls: [
       { key: 'amplitude', label: 'Amplitude', type: 'range', min: 0, max: 1.2, step: 0.01 },
       { key: 'frequency', label: 'Frequency', type: 'range', min: 0.2, max: 6, step: 0.1 },
@@ -35,7 +36,7 @@ export const SurfacePresets = {
     ]
   },
   interference: {
-    defaults: { resU: 160, resV: 120, scale: 1, amp1: 0.35, amp2: 0.25, freqU: 3.0, freqV: 2.0, rotate: 0.4, warp: 0.18 },
+    defaults: { resU: 160, resV: 120, scale: 1, amp1: 0.35, amp2: 0.25, freqU: 3.0, freqV: 2.0, rotate: 0.4, warp: 0.18, noise: 0.0 },
     controls: [
       { key: 'amp1', label: 'Amp U', type: 'range', min: 0, max: 1.2, step: 0.01 },
       { key: 'amp2', label: 'Amp V', type: 'range', min: 0, max: 1.2, step: 0.01 },
@@ -43,55 +44,62 @@ export const SurfacePresets = {
       { key: 'freqV', label: 'Freq V', type: 'range', min: 0.2, max: 10, step: 0.1 },
       { key: 'rotate', label: 'Rotate', type: 'range', min: -1.57, max: 1.57, step: 0.01 },
       { key: 'warp', label: 'Warp', type: 'range', min: 0, max: 0.6, step: 0.01 },
+      { key: 'noise', label: 'Noise', type: 'range', min: 0, max: 0.6, step: 0.01 },
     ]
   },
   ridged: {
-    defaults: { resU: 150, resV: 110, scale: 1, amplitude: 0.6, frequency: 3.2, power: 1.3 },
+    defaults: { resU: 150, resV: 110, scale: 1, amplitude: 0.6, frequency: 3.2, power: 1.3, noise: 0.0 },
     controls: [
       { key: 'amplitude', label: 'Amplitude', type: 'range', min: 0, max: 1.5, step: 0.01 },
       { key: 'frequency', label: 'Frequency', type: 'range', min: 0.5, max: 10, step: 0.1 },
       { key: 'power', label: 'Sharpness', type: 'range', min: 0.5, max: 4, step: 0.05 },
+      { key: 'noise', label: 'Noise', type: 'range', min: 0, max: 0.6, step: 0.01 },
     ]
   },
   mountains: {
-    defaults: { resU: 160, resV: 120, scale: 1, amplitude: 0.7, bumpCount: 8, sharpness: 5.0, seed: 3 },
+    defaults: { resU: 160, resV: 120, scale: 1, amplitude: 0.7, bumpCount: 8, sharpness: 5.0, seed: 3, noise: 0.0 },
     controls: [
       { key: 'bumpCount', label: 'Bumps', type: 'number', min: 1, max: 50, step: 1 },
       { key: 'amplitude', label: 'Amplitude', type: 'range', min: 0, max: 1.2, step: 0.01 },
       { key: 'sharpness', label: 'Sharpness', type: 'range', min: 1.0, max: 12.0, step: 0.1 },
       { key: 'seed', label: 'Seed', type: 'number', min: 0, max: 9999, step: 1 },
+      { key: 'noise', label: 'Noise', type: 'range', min: 0, max: 0.6, step: 0.01 },
     ]
   },
   gyroid: {
-    defaults: { resU: 150, resV: 120, scale: 1, amplitude: 0.35, frequency: 2.2, iso: 0.0 },
+    defaults: { resU: 150, resV: 120, scale: 1, amplitude: 0.35, frequency: 2.2, iso: 0.0, noise: 0.0 },
     controls: [
       { key: 'amplitude', label: 'Amplitude', type: 'range', min: 0, max: 1.2, step: 0.01 },
       { key: 'frequency', label: 'Frequency', type: 'range', min: 0.5, max: 8, step: 0.1 },
       { key: 'iso', label: 'Iso Level', type: 'range', min: -1, max: 1, step: 0.01 },
+      { key: 'noise', label: 'Noise', type: 'range', min: 0, max: 0.6, step: 0.01 },
     ]
   },
   folds: {
-    defaults: { resU: 140, resV: 110, scale: 1, amplitude: 0.5, folds: 5.0, skew: 0.6 },
+    defaults: { resU: 140, resV: 110, scale: 1, amplitude: 0.5, folds: 5.0, skew: 0.6, noise: 0.0 },
     controls: [
       { key: 'amplitude', label: 'Amplitude', type: 'range', min: 0, max: 1.5, step: 0.01 },
       { key: 'folds', label: 'Fold Count', type: 'range', min: 1, max: 12, step: 0.1 },
       { key: 'skew', label: 'Skew', type: 'range', min: 0, max: 2.0, step: 0.01 },
+      { key: 'noise', label: 'Noise', type: 'range', min: 0, max: 0.6, step: 0.01 },
     ]
   },
   twist: {
-    defaults: { resU: 140, resV: 110, scale: 1, amplitude: 0.35, frequency: 2.5, twist: 1.2 },
+    defaults: { resU: 140, resV: 110, scale: 1, amplitude: 0.35, frequency: 2.5, twist: 1.2, noise: 0.0 },
     controls: [
       { key: 'amplitude', label: 'Amplitude', type: 'range', min: 0, max: 1.5, step: 0.01 },
       { key: 'frequency', label: 'Frequency', type: 'range', min: 0.2, max: 8, step: 0.1 },
       { key: 'twist', label: 'Twist', type: 'range', min: 0, max: 3.5, step: 0.01 },
+      { key: 'noise', label: 'Noise', type: 'range', min: 0, max: 0.6, step: 0.01 },
     ]
   },
   checker: {
-    defaults: { resU: 150, resV: 120, scale: 1, amplitude: 0.5, frequency: 3.0, sub: 0.25 },
+    defaults: { resU: 150, resV: 120, scale: 1, amplitude: 0.5, frequency: 3.0, sub: 0.25, noise: 0.0 },
     controls: [
       { key: 'amplitude', label: 'Amplitude', type: 'range', min: 0, max: 1.2, step: 0.01 },
       { key: 'frequency', label: 'Frequency', type: 'range', min: 0.5, max: 10, step: 0.1 },
       { key: 'sub', label: 'Detail', type: 'range', min: 0, max: 1, step: 0.01 },
+      { key: 'noise', label: 'Noise', type: 'range', min: 0, max: 0.6, step: 0.01 },
     ]
   }
 };
@@ -120,9 +128,9 @@ function mapTo3D(p, u, v) {
   let x=x0, y=y0, z=0;
   switch (p.type) {
     case 'ripple': {
-      const a = p.amplitude ?? 0.4, f = p.frequency ?? 2.5, n = p.noise ?? 0.0;
+      const a = p.amplitude ?? 0.4, f = p.frequency ?? 2.5;
       const r = Math.hypot(x0*1.1, y0*0.9);
-      z = a * Math.sin(f * r + 0.5*Math.sin(2*y0)) + n*(perlin2(x0*3,y0*3)-0.5);
+      z = a * Math.sin(f * r + 0.5*Math.sin(2*y0));
       break;
     }
     case 'saddle': {
@@ -132,8 +140,8 @@ function mapTo3D(p, u, v) {
       const a = p.amplitude ?? 0.6; z = a * (x0*x0 + y0*y0); break;
     }
     case 'bumps': {
-      const a = p.amplitude ?? 0.35; const f = p.frequency ?? 2.0; const n = p.noise ?? 0.0;
-      z = a*Math.sin(f*x0)*Math.sin(f*0.7*y0) + n*(perlin2(x0*4,y0*4)-0.5);
+      const a = p.amplitude ?? 0.35; const f = p.frequency ?? 2.0;
+      z = a*Math.sin(f*x0)*Math.sin(f*0.7*y0);
       break;
     }
     case 'swiss': {
@@ -198,6 +206,13 @@ function mapTo3D(p, u, v) {
       z = amplitude * (base + sub*fine);
       break;
     }
+  }
+  // Add global noise (applies to every preset)
+  const n = p.noise ?? 0.0;
+  if (n > 0) {
+    const n1 = perlin2(x0*3.1, y0*3.3) - 0.5;
+    const n2 = perlin2(x0*7.7 + 13.0*y0, y0*5.5 - 17.0*x0) - 0.5;
+    z += n * (0.6*n1 + 0.4*n2);
   }
   // mild boundary irregularity so the silhouette looks organic
   const b = 0.04 * Math.sin(6*u) * Math.cos(5*v);
