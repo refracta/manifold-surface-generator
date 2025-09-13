@@ -262,7 +262,7 @@ const markerShape = document.getElementById('markerShape');
 const markerSize = document.getElementById('markerSize');
 const markerColor = document.getElementById('markerColor');
 const markerAlpha = document.getElementById('markerAlpha');
-document.getElementById('clearMarkers').onclick = () => markerLayer.clear();
+document.getElementById('clearMarkers').onclick = () => { markerLayer.clear(); scheduleUpdateURL(); };
 markersEnable.addEventListener('change', () => markerLayer.setVisible(markersEnable.checked));
 markerAlpha.addEventListener('input', () => markerLayer.setAlpha(parseFloat(markerAlpha.value)));
 
@@ -271,7 +271,13 @@ document.getElementById('savePng').onclick = savePNG;
 document.getElementById('exportGLB').onclick = () => exportGLB(surfaceGroup);
 document.getElementById('exportOBJ').onclick = () => exportOBJ(surfaceGroup);
 document.getElementById('resetCamera').onclick = () => { camera.position.copy(defaultCamPos); controls.target.set(0,0,0); controls.update(); };
-document.getElementById('resetAll').onclick = () => { applyConfig(DEFAULTS); scheduleUpdateURL(); };
+document.getElementById('resetAll').onclick = () => {
+  markerLayer.clear();
+  camera.position.copy(defaultCamPos);
+  controls.target.set(0,0,0); controls.update();
+  applyConfig(DEFAULTS);
+  scheduleUpdateURL();
+};
 
 // Picking / Click detection
 const raycaster = new THREE.Raycaster();
