@@ -398,8 +398,9 @@ function toLine2(bufferGeo, { style, color, alpha, width, depthTest=true }) {
     color: color.getHex(), transparent: alpha < 1, opacity: alpha, linewidth: width,
     dashed: !isSolid, dashSize: style==='dotted'?0.05:0.14, gapSize: style==='dotted'?0.12:0.06,
   });
-  mat.depthTest = depthTest; // true for geodesics, false for overlay boundary
-  mat.depthWrite = depthTest;
+  mat.depthTest = depthTest; // depth test controls occlusion
+  mat.depthWrite = depthTest; // write depth for geodesics so other lines respect it
+  if (depthTest) { mat.polygonOffset = true; mat.polygonOffsetFactor = -1; mat.polygonOffsetUnits = -1; }
   mat.alphaToCoverage = false; // avoid dotted appearance on some GPUs
   mat.resolution.set(renderer.domElement.clientWidth, renderer.domElement.clientHeight);
   const line = new Line2(geo, mat);
@@ -465,7 +466,7 @@ function rebuildBoundaryLines() {
     boundaryGeos = buildDomainBoundary(surfaceState);
   }
   for (const g of boundaryGeos) {
-    const line = toLine2(g, { style, color, alpha, width, depthTest: false });
+    const line = toLine2(g, { style, color, alpha, width, depthTest: true });
     clipLinesGroup.add(line);
   }
 }
