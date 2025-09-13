@@ -379,6 +379,16 @@ setPreset('ripple');
 updateColors();
 animate();
 
+// ---------------- URL state sync (save/load) ----------------
+const DEFAULTS = snapshotConfig();
+applyConfigFromURL();
+scheduleUpdateURL();
+
+// Debounced URL update on any input/change inside the panel
+const panelEl = document.getElementById('overlay-panel');
+panelEl.addEventListener('input', scheduleUpdateURL);
+panelEl.addEventListener('change', scheduleUpdateURL);
+
 // Build dynamic controls for the selected preset
 function buildPresetParamsUI(presetName) {
   const container = document.getElementById('presetParams');
@@ -496,4 +506,157 @@ function rebuildBoundaryLines() {
     const line = toLine2(g, { style, color, alpha, width, depthTest: true, dash, gap, depthWrite: false, zOffset: -4 });
     clipLinesGroup.add(line);
   }
+}
+
+// Take a snapshot of current UI state and params
+function snapshotConfig() {
+  const cfg = { preset: params.type, resU: params.resU, resV: params.resV, scale: params.scale,
+    presetParams: {}, wireframe: !!document.getElementById('wireframe').checked,
+    mask: {
+      mode: document.getElementById('clipMode').value,
+      rectW: parseFloat(document.getElementById('clipRectW').value),
+      rectH: parseFloat(document.getElementById('clipRectH').value),
+      radius: parseFloat(document.getElementById('clipRadius').value),
+      show: !!document.getElementById('clipLinesEnable').checked,
+      width: parseFloat(document.getElementById('clipWidth').value),
+      style: document.getElementById('clipStyle').value,
+      dash: parseFloat(document.getElementById('clipDash')?.value || '0.14'),
+      gap: parseFloat(document.getElementById('clipGap')?.value || '0.06'),
+      color: document.getElementById('clipColor').value,
+      alpha: parseFloat(document.getElementById('clipAlpha').value)
+    },
+    colors: {
+      bg: document.getElementById('bgColor').value,
+      bgA: parseFloat(document.getElementById('bgAlpha').value),
+      mode: document.getElementById('colorMode').value,
+      solid: document.getElementById('solidColor').value,
+      opacity: parseFloat(document.getElementById('surfaceOpacity').value),
+      axis: document.getElementById('gradAxis').value,
+      stops: readGradientStops()
+    },
+    geodesics: {
+      enable: !!document.getElementById('geoEnable').checked,
+      method: document.getElementById('geoMethod').value,
+      count: parseInt(document.getElementById('geoCount').value,10),
+      width: parseFloat(document.getElementById('geoWidth').value),
+      style: document.getElementById('geoStyle').value,
+      dash: parseFloat(document.getElementById('geoDash')?.value || '0.14'),
+      gap: parseFloat(document.getElementById('geoGap')?.value || '0.06'),
+      color: document.getElementById('geoColor').value,
+      alpha: parseFloat(document.getElementById('geoAlpha').value)
+    },
+    markers: {
+      enable: !!document.getElementById('markersEnable').checked,
+      shape: document.getElementById('markerShape').value,
+      size: parseInt(document.getElementById('markerSize').value,10),
+      color: document.getElementById('markerColor').value,
+      alpha: parseFloat(document.getElementById('markerAlpha').value)
+    }
+  };
+  // preset specific values
+  const def = SurfacePresets[cfg.preset];
+  if (def) for (const c of def.controls) cfg.presetParams[c.key] = params[c.key];
+  return cfg;
+}
+
+function deepDiff(cur, def) {
+  if (Array.isArray(cur) && Array.isArray(def)) {
+    return JSON.stringify(cur) === JSON.stringify(def) ? undefined : cur;
+  } else if (typeof cur === 'object' && cur && typeof def === 'object' && def) {
+    const out = {}; let any=false; for (const k of new Set([...Object.keys(cur), ...Object.keys(def)])) {
+      const d = deepDiff(cur[k], def[k]); if (d !== undefined) { out[k]=d; any=true; }
+    }
+    return any ? out : undefined;
+  } else {
+    return (cur === def) ? undefined : cur;
+  }
+}
+
+function updateURLFromState() {
+  const cur = snapshotConfig();
+  const diff = deepDiff(cur, DEFAULTS) || {};
+  const sp = new URLSearchParams(window.location.search);
+  if (Object.keys(diff).length === 0) {
+    sp.delete('cfg');
+  } else {
+    sp.set('cfg', encodeURIComponent(JSON.stringify(diff)));
+  }
+  const url = window.location.pathname + (sp.toString() ? ('?' + sp.toString()) : '');
+  window.history.replaceState({}, '', url);
+}
+let urlTimer; function scheduleUpdateURL(){ clearTimeout(urlTimer); urlTimer=setTimeout(updateURLFromState, 200); }
+
+function applyConfigFromURL() {
+  const sp = new URLSearchParams(window.location.search);
+  const raw = sp.get('cfg'); if (!raw) return;
+  try { const diff = JSON.parse(decodeURIComponent(raw)); applyConfig(diff); } catch(e) { console.warn('Invalid cfg param', e); }
+}
+
+function applyConfig(diff) {
+  if (!diff || typeof diff !== 'object') return;
+  // Preset first
+  if (diff.preset && diff.preset !== params.type) { document.getElementById('preset').value = diff.preset; setPreset(diff.preset); }
+  if (diff.resU) { document.getElementById('resU').value = diff.resU; params.resU = diff.resU; }
+  if (diff.resV) { document.getElementById('resV').value = diff.resV; params.resV = diff.resV; }
+  if (diff.scale) { document.getElementById('scale').value = diff.scale; params.scale = diff.scale; }
+  if (diff.presetParams) {
+    for (const [k,v] of Object.entries(diff.presetParams)) { params[k] = v; const el = document.getElementById(`param_${k}`); if (el) el.value = v; }
+  }
+  // Mask
+  if (diff.mask) {
+    const m = diff.mask;
+    if (m.mode) document.getElementById('clipMode').value = m.mode;
+    if (m.rectW!=null) document.getElementById('clipRectW').value = m.rectW;
+    if (m.rectH!=null) document.getElementById('clipRectH').value = m.rectH;
+    if (m.radius!=null) document.getElementById('clipRadius').value = m.radius;
+    if (m.show!=null) document.getElementById('clipLinesEnable').checked = !!m.show;
+    if (m.width!=null) document.getElementById('clipWidth').value = m.width;
+    if (m.style) document.getElementById('clipStyle').value = m.style;
+    if (m.dash!=null) { const e=document.getElementById('clipDash'); if(e) e.value=m.dash; }
+    if (m.gap!=null) { const e=document.getElementById('clipGap'); if(e) e.value=m.gap; }
+    if (m.color) document.getElementById('clipColor').value = m.color;
+    if (m.alpha!=null) document.getElementById('clipAlpha').value = m.alpha;
+  }
+  // Colors
+  if (diff.colors) {
+    const c = diff.colors;
+    if (c.bg) document.getElementById('bgColor').value = c.bg;
+    if (c.bgA!=null) document.getElementById('bgAlpha').value = c.bgA;
+    if (c.mode) document.getElementById('colorMode').value = c.mode;
+    if (c.solid) document.getElementById('solidColor').value = c.solid;
+    if (c.opacity!=null) document.getElementById('surfaceOpacity').value = c.opacity;
+    if (c.axis) document.getElementById('gradAxis').value = c.axis;
+    if (c.stops) { document.getElementById('stops').innerHTML=''; for (const s of c.stops) addStopRow(s.t, s.color); }
+  }
+  // Geodesics
+  if (diff.geodesics) {
+    const g = diff.geodesics;
+    if (g.enable!=null) document.getElementById('geoEnable').checked = !!g.enable;
+    if (g.method) document.getElementById('geoMethod').value = g.method;
+    if (g.count!=null) document.getElementById('geoCount').value = g.count;
+    if (g.width!=null) document.getElementById('geoWidth').value = g.width;
+    if (g.style) document.getElementById('geoStyle').value = g.style;
+    if (g.dash!=null) { const e=document.getElementById('geoDash'); if(e) e.value=g.dash; }
+    if (g.gap!=null) { const e=document.getElementById('geoGap'); if(e) e.value=g.gap; }
+    if (g.color) document.getElementById('geoColor').value = g.color;
+    if (g.alpha!=null) document.getElementById('geoAlpha').value = g.alpha;
+  }
+  // Markers
+  if (diff.markers) {
+    const mk = diff.markers; if (mk.enable!=null) document.getElementById('markersEnable').checked = !!mk.enable;
+    if (mk.shape) document.getElementById('markerShape').value = mk.shape;
+    if (mk.size!=null) document.getElementById('markerSize').value = mk.size;
+    if (mk.color) document.getElementById('markerColor').value = mk.color;
+    if (mk.alpha!=null) document.getElementById('markerAlpha').value = mk.alpha;
+  }
+  // Wireframe
+  if (diff.wireframe!=null) document.getElementById('wireframe').checked = !!diff.wireframe;
+
+  // Apply all
+  updateBackground();
+  regenerateSurface();
+  updateColors();
+  updateClip();
+  rebuildGeodesics();
+  rebuildBoundaryLines();
 }
