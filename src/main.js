@@ -28,7 +28,10 @@ const defaultCamPos = camera.position.clone();
 
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
+// Save camera state on orbit changes (during and after)
 controls.addEventListener('change', () => scheduleUpdateURL());
+controls.addEventListener('end', () => scheduleUpdateURL());
+renderer.domElement.addEventListener('wheel', () => scheduleUpdateURL(), { passive: true });
 
 // Lights
 scene.add(new THREE.AmbientLight(0xffffff, 0.6));
@@ -527,7 +530,7 @@ function rebuildBoundaryLines() {
 function snapshotConfig() {
   const cfg = { preset: params.type, resU: params.resU, resV: params.resV, scale: params.scale,
     presetParams: {}, wireframe: !!document.getElementById('wireframe').checked,
-    camera: { pos: [camera.position.x, camera.position.y, camera.position.z], target: [controls.target.x, controls.target.y, controls.target.z] },
+    camera: { pos: [camera.position.x, camera.position.y, camera.position.z], target: [controls.target.x, controls.target.y, controls.target.z], fov: camera.fov },
     mask: {
       mode: document.getElementById('clipMode').value,
       rectW: parseFloat(document.getElementById('clipRectW').value),
@@ -623,6 +626,7 @@ function applyConfig(diff) {
     const c = diff.camera;
     if (Array.isArray(c.pos)) camera.position.set(c.pos[0], c.pos[1], c.pos[2]);
     if (Array.isArray(c.target)) controls.target.set(c.target[0], c.target[1], c.target[2]);
+    if (typeof c.fov === 'number') { camera.fov = c.fov; camera.updateProjectionMatrix(); }
     controls.update();
   }
   // Mask
