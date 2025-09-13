@@ -74,7 +74,7 @@ function rebuildGeodesics() {
     lines = buildParamStraight(surfaceState, count);
   }
   for (const geo of lines) {
-    const line = toLine2(geo, { style, color, alpha, width });
+    const line = toLine2(geo, { style, color, alpha, width, depthTest: true });
     makeLineClippable(line.material, surfaceState.mesh);
     setLineClip(line.material, params.clip, params.scale);
     geodesicGroup.add(line);
@@ -372,7 +372,7 @@ function buildPresetParamsUI(presetName) {
   container.appendChild(row);
 }
 
-function toLine2(bufferGeo, { style, color, alpha, width }) {
+function toLine2(bufferGeo, { style, color, alpha, width, depthTest=true }) {
   const positions = bufferGeo.getAttribute('position').array;
   const densified = densifyPositions(positions, Math.max(1, Math.ceil(width * 0.6)));
   const geo = new LineGeometry();
@@ -381,7 +381,7 @@ function toLine2(bufferGeo, { style, color, alpha, width }) {
     color: color.getHex(), transparent: alpha < 1, opacity: alpha, linewidth: width,
     dashed: style !== 'solid', dashSize: style==='dotted'?0.05:0.14, gapSize: style==='dotted'?0.12:0.06,
   });
-  mat.depthTest = false; // draw on top, avoid z-fighting hooks
+  mat.depthTest = depthTest; // true for geodesics, false for overlay boundary
   mat.alphaToCoverage = true;
   mat.resolution.set(renderer.domElement.clientWidth, renderer.domElement.clientHeight);
   const line = new Line2(geo, mat);
@@ -428,4 +428,26 @@ function randomizeCurrentPreset() {
   if (params.type === 'mountains') delete params._centers; // force recompute with current seed
   regenerateSurface();
   updateColors();
+}
+
+// Rebuild boundary (closed) lines for the current domain or mask
+function rebuildBoundaryLines() {
+  clipLinesGroup.clear();
+  if (!surfaceState) return;
+  if (!document.getElementById('clipLinesEnable').checked) return;
+  const style = document.getElementById('clipStyle').value;
+  const color = new THREE.Color(document.getElementById('clipColor').value);
+  const alpha = parseFloat(document.getElementById('clipAlpha').value);
+  const width = parseFloat(document.getElementById('clipWidth').value);
+
+  let boundaryGeos;
+  if (params.clip && params.clip.mode !== 'none') {
+    boundaryGeos = buildClipBoundary(surfaceState, params.clip);
+  } else {
+    boundaryGeos = buildDomainBoundary(surfaceState);
+  }
+  for (const g of boundaryGeos) {
+    const line = toLine2(g, { style, color, alpha, width, depthTest: false });
+    clipLinesGroup.add(line);
+  }
 }
