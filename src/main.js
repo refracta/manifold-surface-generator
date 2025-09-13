@@ -8,6 +8,7 @@ import { LineGeometry } from 'https://unpkg.com/three@0.160.0/examples/jsm/lines
 
 import { buildSurface, colorizeGeometry, SurfacePresets, createSurfaceParams, setClip, makeLineClippable, setLineClip } from './surface.js';
 import { buildIsoGrid, buildEdgeShortestPath, buildParamStraight } from './geodesic.js';
+import { buildClipBoundary } from './boundary.js';
 import { MarkerLayer } from './markers.js';
 
 const container = document.getElementById('canvas-container');
@@ -85,10 +86,10 @@ function rebuildGeodesics() {
     const calpha = parseFloat(document.getElementById('clipAlpha').value);
     const cwidth = parseFloat(document.getElementById('clipWidth').value);
     const overlayClip = overlayClipParams();
-    for (const geo of lines) {
-      const line = toLine2(geo, { style: cstyle, color: ccolor, alpha: calpha, width: cwidth });
-      makeLineClippable(line.material, surfaceState.mesh, true /* invert */);
-      setLineClip(line.material, overlayClip, params.scale, true);
+    const boundaryGeos = buildClipBoundary(surfaceState, overlayClip);
+    for (const g of boundaryGeos) {
+      const line = toLine2(g, { style: cstyle, color: ccolor, alpha: calpha, width: cwidth });
+      // No need to make clippable/invert: boundary is already the curve itself
       clipLinesGroup.add(line);
     }
   }
@@ -393,7 +394,7 @@ function toLine2(bufferGeo, { style, color, alpha, width }) {
   });
   mat.resolution.set(renderer.domElement.clientWidth, renderer.domElement.clientHeight);
   const line = new Line2(geo, mat);
-  line.computeLineDistances();
+  if (style !== 'solid') line.computeLineDistances();
   return line;
 }
 
