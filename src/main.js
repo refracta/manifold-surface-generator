@@ -335,6 +335,11 @@ function buildPresetParamsUI(presetName) {
     input.id = `param_${c.key}`;
     input.addEventListener('input', () => { params[c.key] = (c.type==='number') ? parseFloat(input.value) : parseFloat(input.value); regenerateSurface(); updateColors(); });
     row.appendChild(input);
+    // Randomize checkbox per parameter (default: all checked except Noise)
+    const rand = document.createElement('input'); rand.type = 'checkbox'; rand.id = `rand_${c.key}`; rand.checked = (c.key.toLowerCase() !== 'noise');
+    const randLabel = document.createElement('span'); randLabel.textContent = 'Rnd'; randLabel.style.fontSize = '12px';
+    const wrap = document.createElement('div'); wrap.style.display = 'flex'; wrap.style.alignItems = 'center'; wrap.style.gap = '4px'; wrap.appendChild(randLabel); wrap.appendChild(rand);
+    row.appendChild(wrap);
     container.appendChild(row);
   }
   // Randomize button
@@ -349,9 +354,11 @@ function buildPresetParamsUI(presetName) {
 function randomizeCurrentPreset() {
   const def = SurfacePresets[params.type]; if (!def) return;
   for (const c of def.controls) {
+    // Skip if this parameter is not checked for randomization
+    const cb = document.getElementById(`rand_${c.key}`); if (cb && !cb.checked) continue;
     const min = c.min ?? 0; const max = c.max ?? 1; const step = c.step ?? 0.01;
     let value;
-    if (c.type === 'number' && step >= 1) {
+    if (c.type === 'number' && (Number.isInteger(step) || step >= 1)) {
       const k = Math.floor(Math.random() * (Math.floor((max-min)/step)+1));
       value = min + k*step;
     } else {
@@ -363,13 +370,7 @@ function randomizeCurrentPreset() {
     const input = document.getElementById(`param_${c.key}`); if (input) input.value = String(value);
   }
   // If mountains preset, reset centers when bumpCount/seed change
-  if (params.type === 'mountains') {
-    if (def.controls.find(cc => cc.key === 'seed')) {
-      params.seed = Math.floor(Math.random() * 10000);
-      const seedInput = document.getElementById('param_seed'); if (seedInput) seedInput.value = String(params.seed);
-    }
-    delete params._centers; // force recompute
-  }
+  if (params.type === 'mountains') delete params._centers; // force recompute with current seed
   regenerateSurface();
   updateColors();
 }
