@@ -8,7 +8,7 @@ import { LineGeometry } from 'https://unpkg.com/three@0.160.0/examples/jsm/lines
 
 import { buildSurface, colorizeGeometry, SurfacePresets, createSurfaceParams, setClip, makeLineClippable, setLineClip } from './surface.js';
 import { buildIsoGrid, buildEdgeShortestPath, buildParamStraight } from './geodesic.js';
-import { buildClipBoundary, buildDomainBoundary } from './boundary.js';
+import { buildClipBoundary, buildDomainBoundary, clipPolylineToMask } from './boundary.js';
 import { MarkerLayer } from './markers.js';
 
 const container = document.getElementById('canvas-container');
@@ -74,10 +74,14 @@ function rebuildGeodesics() {
     lines = buildParamStraight(surfaceState, count);
   }
   for (const geo of lines) {
-    const line = toLine2(geo, { style, color, alpha, width, depthTest: true });
-    makeLineClippable(line.material, surfaceState.mesh);
-    setLineClip(line.material, params.clip, params.scale);
-    geodesicGroup.add(line);
+    const pos = geo.getAttribute('position').array;
+    const geos = (params.clip && params.clip.mode !== 'none') ? clipPolylineToMask(surfaceState, params.clip, pos) : [geo];
+    for (const g of geos) {
+      const line = toLine2(g, { style, color, alpha, width, depthTest: true });
+      makeLineClippable(line.material, surfaceState.mesh);
+      setLineClip(line.material, params.clip, params.scale);
+      geodesicGroup.add(line);
+    }
   }
   // Boundary lines handled separately
   // Edge‑shortest path added interactively via buttons
@@ -214,10 +218,17 @@ document.getElementById('addPath').onclick = () => {
   const color = new THREE.Color(document.getElementById('geoColor').value);
   const alpha = parseFloat(document.getElementById('geoAlpha').value);
   const width = parseFloat(document.getElementById('geoWidth').value);
-  const line = toLine2(geo, { style, color, alpha, width });
-  makeLineClippable(line.material, surfaceState.mesh);
-  setLineClip(line.material, params.clip, params.scale);
-  geodesicGroup.add(line);
+  let segments = [geo];
+  if (params.clip && params.clip.mode !== 'none') {
+    const pos = geo.getAttribute('position').array;
+    segments = clipPolylineToMask(surfaceState, params.clip, pos);
+  }
+  for (const g of segments) {
+    const line = toLine2(g, { style, color, alpha, width, depthTest: true });
+    makeLineClippable(line.material, surfaceState.mesh);
+    setLineClip(line.material, params.clip, params.scale);
+    geodesicGroup.add(line);
+  }
   pickedStart = pickedEnd = null; pickingStart = pickingEnd = false;
 };
 document.getElementById('clearGeodesics').onclick = () => { geodesicGroup.clear(); rebuildGeodesics(); };

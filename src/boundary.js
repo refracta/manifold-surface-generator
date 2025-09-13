@@ -73,6 +73,62 @@ export function buildDomainBoundary(state) {
   return [polylineToGeometry(pts)];
 }
 
+// Clip a single polyline (positions Float32Array [x,y,z,...]) to the inside of the given clip shape
+// Returns an array of BufferGeometry segments (each is inside the region)
+export function clipPolylineToMask(state, clip, positions) {
+  if (!clip || clip.mode === 'none') {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(positions.slice ? positions.slice() : new Float32Array(positions), 3));
+    return [g];
+  }
+  const scale = state.params.scale || 1;
+  const w = ((clip.rectW ?? 1) * 0.5) * scale;
+  const h = ((clip.rectH ?? 1) * 0.5) * scale;
+  const r = (clip.radius ?? 1) * scale;
+
+  function sdfRect(x, z) { return Math.max(Math.abs(x) - w, Math.abs(z) - h); }
+  function sdfCircle(x, z) { return Math.hypot(x, z) - r; }
+  const sdf = clip.mode === 'rect' ? sdfRect : sdfCircle;
+
+  const N = positions.length / 3;
+  const segments = [];
+  let curr = [];
+  function pushCurr() {
+    if (curr.length >= 2) {
+      const arr = new Float32Array(curr.length * 3);
+      let k = 0; for (const p of curr) { arr[k++]=p[0]; arr[k++]=p[1]; arr[k++]=p[2]; }
+      const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(arr,3));
+      segments.push(g);
+    }
+    curr = [];
+  }
+
+  function P(i) { return [positions[i*3], positions[i*3+1], positions[i*3+2]]; }
+  function F(p) { return sdf(p[0], p[2]); }
+
+  for (let i=0;i<N-1;i++) {
+    const a = P(i), b = P(i+1); const fa = F(a), fb = F(b);
+    const aInside = fa <= 0, bInside = fb <= 0;
+    if (aInside) {
+      if (curr.length === 0) curr.push(a); else if (i===0) curr.push(a);
+    }
+    if (aInside !== bInside) {
+      const t = fa / (fa - fb + 1e-12);
+      const x = a[0] + (b[0]-a[0]) * t;
+      const y = a[1] + (b[1]-a[1]) * t;
+      const z = a[2] + (b[2]-a[2]) * t;
+      const ip = [x,y,z];
+      curr.push(ip);
+      if (!bInside) { pushCurr(); }
+      else { curr = [ip]; }
+    } else if (bInside) {
+      curr.push(b);
+    }
+  }
+  pushCurr();
+  return segments;
+}
+
 function joinSegments(segs) {
   const eps = 1e-3;
   const key = (p) => `${p[0].toFixed(3)},${p[1].toFixed(3)},${p[2].toFixed(3)}`;
