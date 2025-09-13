@@ -64,6 +64,8 @@ function rebuildGeodesics() {
   const color = new THREE.Color(document.getElementById('geoColor').value);
   const alpha = parseFloat(document.getElementById('geoAlpha').value);
   const width = parseFloat(document.getElementById('geoWidth').value);
+  const dash = parseFloat(document.getElementById('geoDash')?.value || '0.14');
+  const gap = parseFloat(document.getElementById('geoGap')?.value || '0.06');
   const count = parseInt(document.getElementById('geoCount').value, 10);
   const method = document.getElementById('geoMethod').value;
 
@@ -77,7 +79,7 @@ function rebuildGeodesics() {
     const pos = geo.getAttribute('position').array;
     const geos = (params.clip && params.clip.mode !== 'none') ? clipPolylineToMask(surfaceState, params.clip, pos) : [geo];
     for (const g of geos) {
-      const line = toLine2(g, { style, color, alpha, width, depthTest: true });
+      const line = toLine2(g, { style, color, alpha, width, depthTest: true, dash, gap });
       makeLineClippable(line.material, surfaceState.mesh);
       setLineClip(line.material, params.clip, params.scale);
       geodesicGroup.add(line);
@@ -204,10 +206,14 @@ document.getElementById('geoWidth').addEventListener('input', rebuildGeodesics);
 document.getElementById('geoStyle').addEventListener('change', rebuildGeodesics);
 document.getElementById('geoColor').addEventListener('input', rebuildGeodesics);
 document.getElementById('geoAlpha').addEventListener('input', rebuildGeodesics);
+document.getElementById('geoDash')?.addEventListener('input', rebuildGeodesics);
+document.getElementById('geoGap')?.addEventListener('input', rebuildGeodesics);
 
 ['clipLinesEnable','clipWidth','clipStyle','clipColor','clipAlpha'].forEach(id => {
   const el = document.getElementById(id); if (el) el.addEventListener('input', rebuildBoundaryLines);
 });
+document.getElementById('clipDash')?.addEventListener('input', rebuildBoundaryLines);
+document.getElementById('clipGap')?.addEventListener('input', rebuildBoundaryLines);
 
 // Interactive edge-shortest path
 let pickingStart = false, pickingEnd = false; let pickedStart = null, pickedEnd = null;
@@ -220,13 +226,15 @@ document.getElementById('addPath').onclick = () => {
   const color = new THREE.Color(document.getElementById('geoColor').value);
   const alpha = parseFloat(document.getElementById('geoAlpha').value);
   const width = parseFloat(document.getElementById('geoWidth').value);
+  const dash = parseFloat(document.getElementById('geoDash')?.value || '0.14');
+  const gap = parseFloat(document.getElementById('geoGap')?.value || '0.06');
   let segments = [geo];
   if (params.clip && params.clip.mode !== 'none') {
     const pos = geo.getAttribute('position').array;
     segments = clipPolylineToMask(surfaceState, params.clip, pos);
   }
   for (const g of segments) {
-    const line = toLine2(g, { style, color, alpha, width, depthTest: true });
+    const line = toLine2(g, { style, color, alpha, width, depthTest: true, dash, gap });
     makeLineClippable(line.material, surfaceState.mesh);
     setLineClip(line.material, params.clip, params.scale);
     geodesicGroup.add(line);
@@ -401,7 +409,7 @@ function buildPresetParamsUI(presetName) {
   container.appendChild(row);
 }
 
-function toLine2(bufferGeo, { style, color, alpha, width, depthTest=true }) {
+function toLine2(bufferGeo, { style, color, alpha, width, depthTest=true, depthWrite, dash, gap, zOffset=-1 }) {
   const positions = bufferGeo.getAttribute('position').array;
   const densified = densifyPositions(positions, Math.max(1, Math.ceil(width * 0.6)));
   const geo = new LineGeometry();
@@ -409,11 +417,11 @@ function toLine2(bufferGeo, { style, color, alpha, width, depthTest=true }) {
   const isSolid = (style === 'solid');
   const mat = new LineMaterial({
     color: color.getHex(), transparent: alpha < 1, opacity: alpha, linewidth: width,
-    dashed: !isSolid, dashSize: style==='dotted'?0.05:0.14, gapSize: style==='dotted'?0.12:0.06,
+    dashed: !isSolid, dashSize: (dash!=null?dash:(style==='dotted'?0.05:0.14)), gapSize: (gap!=null?gap:(style==='dotted'?0.12:0.06)),
   });
   mat.depthTest = depthTest; // depth test controls occlusion
-  mat.depthWrite = depthTest; // write depth for geodesics so other lines respect it
-  if (depthTest) { mat.polygonOffset = true; mat.polygonOffsetFactor = -1; mat.polygonOffsetUnits = -1; }
+  mat.depthWrite = (depthWrite == null ? depthTest : depthWrite); // optionally disable depth write
+  if (depthTest) { mat.polygonOffset = true; mat.polygonOffsetFactor = zOffset; mat.polygonOffsetUnits = zOffset; }
   mat.alphaToCoverage = false; // avoid dotted appearance on some GPUs
   mat.resolution.set(renderer.domElement.clientWidth, renderer.domElement.clientHeight);
   const line = new Line2(geo, mat);
@@ -471,6 +479,8 @@ function rebuildBoundaryLines() {
   const color = new THREE.Color(document.getElementById('clipColor').value);
   const alpha = parseFloat(document.getElementById('clipAlpha').value);
   const width = parseFloat(document.getElementById('clipWidth').value);
+  const dash = parseFloat(document.getElementById('clipDash')?.value || '0.14');
+  const gap = parseFloat(document.getElementById('clipGap')?.value || '0.06');
 
   let boundaryGeos;
   if (params.clip && params.clip.mode !== 'none') {
@@ -479,7 +489,7 @@ function rebuildBoundaryLines() {
     boundaryGeos = buildDomainBoundary(surfaceState);
   }
   for (const g of boundaryGeos) {
-    const line = toLine2(g, { style, color, alpha, width, depthTest: true });
+    const line = toLine2(g, { style, color, alpha, width, depthTest: true, dash, gap, depthWrite: false, zOffset: -4 });
     clipLinesGroup.add(line);
   }
 }

@@ -40,6 +40,12 @@
             </select>
           </div>
           <div class="row">
+            <label>Dash</label>
+            <input id="geoDash" type="range" min="0.01" max="0.6" step="0.01" value="0.14" />
+            <label style="width:50px">Gap</label>
+            <input id="geoGap" type="range" min="0.01" max="0.6" step="0.01" value="0.06" />
+          </div>
+          <div class="row">
             <label>Resolution</label>
             <input id="resU" type="number" min="8" max="512" step="1" value="80" /> ×
             <input id="resV" type="number" min="8" max="512" step="1" value="60" />
@@ -58,6 +64,12 @@
                 <option value="rect">Rect</option>
                 <option value="circle">Circle</option>
               </select>
+            </div>
+            <div class="row">
+              <label>Dash</label>
+              <input id="clipDash" type="range" min="0.01" max="0.6" step="0.01" value="0.14" />
+              <label style="width:50px">Gap</label>
+              <input id="clipGap" type="range" min="0.01" max="0.6" step="0.01" value="0.06" />
             </div>
             <div id="clipRect" class="row" style="display:none;">
               <label>Rect W×H</label>
