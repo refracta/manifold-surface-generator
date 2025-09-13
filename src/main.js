@@ -3,20 +3,20 @@ import { OrbitControls } from 'https://unpkg.com/three@0.160.0/examples/jsm/cont
 import { GLTFExporter } from 'https://unpkg.com/three@0.160.0/examples/jsm/exporters/GLTFExporter.js';
 import { OBJExporter } from 'https://unpkg.com/three@0.160.0/examples/jsm/exporters/OBJExporter.js';
 
-import { buildSurface, colorizeGeometry, SurfaceParamsPresets } from './surface.js';
+import { buildSurface, colorizeGeometry, SurfacePresets, createSurfaceParams } from './surface.js';
 import { buildIsoGrid, buildEdgeShortestPath, buildParamStraight } from './geodesic.js';
 import { MarkerLayer } from './markers.js';
 
 const container = document.getElementById('canvas-container');
 const markerLayer = new MarkerLayer(document.getElementById('marker-layer'));
 
-const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
 container.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color('#f5f5f8');
+renderer.setClearColor(new THREE.Color('#f5f5f8'), 1);
 
 const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
 camera.position.set(2.6, 1.8, 2.6);
@@ -37,7 +37,7 @@ let surfaceState = null; // geometry bookkeeping
 let geodesicGroup = new THREE.Group();
 scene.add(geodesicGroup);
 
-const params = { ...SurfaceParamsPresets.ripple }; // start preset
+let params = createSurfaceParams('ripple'); // start preset
 
 function regenerateSurface() {
   if (surfaceGroup) scene.remove(surfaceGroup);
@@ -53,6 +53,7 @@ function rebuildGeodesics() {
   if (!document.getElementById('geoEnable').checked) return;
   const style = document.getElementById('geoStyle').value;
   const color = new THREE.Color(document.getElementById('geoColor').value);
+  const alpha = parseFloat(document.getElementById('geoAlpha').value);
   const count = parseInt(document.getElementById('geoCount').value, 10);
   const method = document.getElementById('geoMethod').value;
 
@@ -63,16 +64,20 @@ function rebuildGeodesics() {
     lines = buildParamStraight(surfaceState, count);
   }
   for (const geo of lines) {
-    const material = new THREE.LineDashedMaterial({
-      color: color.getHex(),
-      linewidth: 1,
-      dashSize: style === 'dotted' ? 0.05 : (style === 'dashed' ? 0.14 : 1),
-      gapSize: style === 'dotted' ? 0.12 : (style === 'dashed' ? 0.06 : 0),
-      scale: 1,
-    });
+    let material;
+    if (style === 'solid') {
+      material = new THREE.LineBasicMaterial({ color: color.getHex(), transparent: alpha < 1, opacity: alpha });
+    } else {
+      material = new THREE.LineDashedMaterial({
+        color: color.getHex(), transparent: alpha < 1, opacity: alpha,
+        linewidth: 1,
+        dashSize: style === 'dotted' ? 0.05 : 0.14,
+        gapSize: style === 'dotted' ? 0.12 : 0.06,
+        scale: 1,
+      });
+    }
     const line = new THREE.Line(geo, material);
     line.computeLineDistances();
-    if (style === 'solid') line.material = new THREE.LineBasicMaterial({ color: color.getHex() });
     geodesicGroup.add(line);
   }
   // Edge‑shortest path added interactively via buttons
@@ -87,6 +92,8 @@ function updateColors() {
     const axis = document.getElementById('gradAxis').value;
     colorizeGeometry(surfaceState.geometry, { mode: 'gradient', axis, stops });
   }
+  const op = parseFloat(document.getElementById('surfaceOpacity').value);
+  surfaceState.mesh.material.opacity = op; surfaceState.mesh.material.transparent = op < 1;
 }
 
 // UI wiring
@@ -110,11 +117,12 @@ function addStopRow(t = 0.5, color = '#ff9aa2') {
 }
 
 function setPreset(name) {
-  const p = SurfaceParamsPresets[name];
-  Object.assign(params, p);
-  document.getElementById('amplitude').value = String(params.amplitude);
-  document.getElementById('frequency').value = String(params.frequency);
-  document.getElementById('noise').value = String(params.noise);
+  params = createSurfaceParams(name);
+  // update general inputs
+  document.getElementById('resU').value = String(params.resU);
+  document.getElementById('resV').value = String(params.resV);
+  document.getElementById('scale').value = String(params.scale);
+  buildPresetParamsUI(name);
   regenerateSurface();
   updateColors();
 }
@@ -123,12 +131,14 @@ document.getElementById('preset').addEventListener('change', (e) => setPreset(e.
 document.getElementById('resU').addEventListener('change', () => { params.resU = clampInt('resU', 8, 512); regenerateSurface(); updateColors(); });
 document.getElementById('resV').addEventListener('change', () => { params.resV = clampInt('resV', 8, 512); regenerateSurface(); updateColors(); });
 document.getElementById('scale').addEventListener('input', (e) => { params.scale = parseFloat(e.target.value); regenerateSurface(); updateColors(); });
-document.getElementById('amplitude').addEventListener('input', (e) => { params.amplitude = parseFloat(e.target.value); regenerateSurface(); updateColors(); });
-document.getElementById('frequency').addEventListener('input', (e) => { params.frequency = parseFloat(e.target.value); regenerateSurface(); updateColors(); });
-document.getElementById('noise').addEventListener('input', (e) => { params.noise = parseFloat(e.target.value); regenerateSurface(); updateColors(); });
 document.getElementById('wireframe').addEventListener('change', (e) => { surfaceState.material.wireframe = e.target.checked; });
 
-document.getElementById('bgColor').addEventListener('input', (e) => { scene.background = new THREE.Color(e.target.value); renderOnce(); });
+function updateBackground() {
+  const c = document.getElementById('bgColor').value; const a = parseFloat(document.getElementById('bgAlpha').value);
+  renderer.setClearColor(new THREE.Color(c), a);
+}
+document.getElementById('bgColor').addEventListener('input', updateBackground);
+document.getElementById('bgAlpha').addEventListener('input', updateBackground);
 document.getElementById('colorMode').addEventListener('change', (e) => {
   const solid = e.target.value === 'solid';
   document.getElementById('solidRow').style.display = solid ? 'flex' : 'none';
@@ -138,12 +148,14 @@ document.getElementById('colorMode').addEventListener('change', (e) => {
 document.getElementById('solidColor').addEventListener('input', updateColors);
 document.getElementById('gradAxis').addEventListener('change', updateColors);
 document.getElementById('addStop').addEventListener('click', () => { addStopRow(Math.random(), '#'+Math.floor(Math.random()*16777215).toString(16).padStart(6,'0')); updateColors(); });
+document.getElementById('surfaceOpacity').addEventListener('input', updateColors);
 
 document.getElementById('geoEnable').addEventListener('change', rebuildGeodesics);
 document.getElementById('geoMethod').addEventListener('change', rebuildGeodesics);
 document.getElementById('geoCount').addEventListener('change', rebuildGeodesics);
 document.getElementById('geoStyle').addEventListener('change', rebuildGeodesics);
 document.getElementById('geoColor').addEventListener('input', rebuildGeodesics);
+document.getElementById('geoAlpha').addEventListener('input', rebuildGeodesics);
 
 // Interactive edge-shortest path
 let pickingStart = false, pickingEnd = false; let pickedStart = null, pickedEnd = null;
@@ -154,7 +166,10 @@ document.getElementById('addPath').onclick = () => {
   const geo = buildEdgeShortestPath(surfaceState, pickedStart, pickedEnd);
   const style = document.getElementById('geoStyle').value;
   const color = new THREE.Color(document.getElementById('geoColor').value);
-  const mat = style === 'solid' ? new THREE.LineBasicMaterial({ color: color.getHex() }) : new THREE.LineDashedMaterial({ color: color.getHex(), dashSize: style==='dotted'?0.05:0.14, gapSize: style==='dotted'?0.12:0.06});
+  const alpha = parseFloat(document.getElementById('geoAlpha').value);
+  const mat = style === 'solid'
+    ? new THREE.LineBasicMaterial({ color: color.getHex(), transparent: alpha < 1, opacity: alpha })
+    : new THREE.LineDashedMaterial({ color: color.getHex(), transparent: alpha < 1, opacity: alpha, dashSize: style==='dotted'?0.05:0.14, gapSize: style==='dotted'?0.12:0.06});
   const line = new THREE.Line(geo, mat); line.computeLineDistances();
   geodesicGroup.add(line);
   pickedStart = pickedEnd = null; pickingStart = pickingEnd = false;
@@ -166,8 +181,10 @@ const markersEnable = document.getElementById('markersEnable');
 const markerShape = document.getElementById('markerShape');
 const markerSize = document.getElementById('markerSize');
 const markerColor = document.getElementById('markerColor');
+const markerAlpha = document.getElementById('markerAlpha');
 document.getElementById('clearMarkers').onclick = () => markerLayer.clear();
 markersEnable.addEventListener('change', () => markerLayer.setVisible(markersEnable.checked));
+markerAlpha.addEventListener('input', () => markerLayer.setAlpha(parseFloat(markerAlpha.value)));
 
 // Export
 document.getElementById('savePng').onclick = savePNG;
@@ -199,6 +216,7 @@ renderer.domElement.addEventListener('pointerdown', (ev) => {
       shape: markerShape.value,
       size: parseInt(markerSize.value, 10),
       color: markerColor.value,
+      alpha: parseFloat(markerAlpha.value),
     });
   }
 });
@@ -254,8 +272,32 @@ document.getElementById('solidRow').style.display = 'none';
 document.getElementById('gradientEditor').style.display = 'flex';
 addStopRow(0, '#a8c7ff');
 addStopRow(1, '#ff9aa2');
+document.getElementById('bgAlpha').value = '1';
+updateBackground();
 
 // Start
-regenerateSurface();
+setPreset('ripple');
 updateColors();
 animate();
+
+// Build dynamic controls for the selected preset
+function buildPresetParamsUI(presetName) {
+  const container = document.getElementById('presetParams');
+  container.innerHTML = '';
+  const def = SurfacePresets[presetName];
+  if (!def) return;
+  for (const c of def.controls) {
+    const row = document.createElement('div'); row.className = 'row';
+    const label = document.createElement('label'); label.textContent = c.label; row.appendChild(label);
+    let input;
+    if (c.type === 'number') {
+      input = document.createElement('input'); input.type = 'number'; input.step = c.step ?? 1; input.min = c.min ?? 0; input.max = c.max ?? 9999; input.value = params[c.key];
+    } else { // range
+      input = document.createElement('input'); input.type = 'range'; input.min = c.min; input.max = c.max; input.step = c.step; input.value = params[c.key];
+    }
+    input.id = `param_${c.key}`;
+    input.addEventListener('input', () => { params[c.key] = (c.type==='number') ? parseFloat(input.value) : parseFloat(input.value); regenerateSurface(); updateColors(); });
+    row.appendChild(input);
+    container.appendChild(row);
+  }
+}

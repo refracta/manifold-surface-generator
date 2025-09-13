@@ -1,16 +1,87 @@
 import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
 
-export const SurfaceParamsPresets = {
-  ripple: { type: 'ripple', resU: 80, resV: 60, scale: 1, amplitude: 0.4, frequency: 2.5, noise: 0.05 },
-  saddle: { type: 'saddle', resU: 80, resV: 60, scale: 1, amplitude: 0.5, frequency: 1.5, noise: 0.0 },
-  paraboloid: { type: 'paraboloid', resU: 80, resV: 60, scale: 1, amplitude: 0.6, frequency: 1.0, noise: 0.0 },
-  swiss: { type: 'swiss', resU: 150, resV: 40, scale: 1, amplitude: 0.4, frequency: 1.0, noise: 0.0 },
-  bumps: { type: 'bumps', resU: 100, resV: 80, scale: 1, amplitude: 0.35, frequency: 2.0, noise: 0.05 },
+// Preset definitions (only show relevant controls per preset)
+export const SurfacePresets = {
+  ripple: {
+    defaults: { resU: 100, resV: 80, scale: 1, amplitude: 0.4, frequency: 2.5, noise: 0.05 },
+    controls: [
+      { key: 'amplitude', label: 'Amplitude', type: 'range', min: 0, max: 1.5, step: 0.01 },
+      { key: 'frequency', label: 'Frequency', type: 'range', min: 0.2, max: 8, step: 0.1 },
+      { key: 'noise', label: 'Noise', type: 'range', min: 0, max: 0.6, step: 0.01 },
+    ]
+  },
+  saddle: {
+    defaults: { resU: 100, resV: 80, scale: 1, amplitude: 0.5 },
+    controls: [ { key: 'amplitude', label: 'Amplitude', type: 'range', min: 0, max: 2, step: 0.01 } ]
+  },
+  paraboloid: {
+    defaults: { resU: 100, resV: 80, scale: 1, amplitude: 0.6 },
+    controls: [ { key: 'amplitude', label: 'Curvature', type: 'range', min: -2, max: 2, step: 0.01 } ]
+  },
+  swiss: {
+    defaults: { resU: 180, resV: 50, scale: 1, turns: 3.5, thickness: 1.2, waviness: 0.15 },
+    controls: [
+      { key: 'turns', label: 'Turns', type: 'range', min: 1, max: 6, step: 0.1 },
+      { key: 'thickness', label: 'Thickness', type: 'range', min: 0.4, max: 2.0, step: 0.05 },
+      { key: 'waviness', label: 'Waviness', type: 'range', min: 0, max: 0.5, step: 0.01 },
+    ]
+  },
+  bumps: {
+    defaults: { resU: 120, resV: 90, scale: 1, amplitude: 0.35, frequency: 2.0, noise: 0.05 },
+    controls: [
+      { key: 'amplitude', label: 'Amplitude', type: 'range', min: 0, max: 1.2, step: 0.01 },
+      { key: 'frequency', label: 'Frequency', type: 'range', min: 0.2, max: 6, step: 0.1 },
+      { key: 'noise', label: 'Noise', type: 'range', min: 0, max: 0.6, step: 0.01 },
+    ]
+  },
+  interference: {
+    defaults: { resU: 160, resV: 120, scale: 1, amp1: 0.35, amp2: 0.25, freqU: 3.0, freqV: 2.0, rotate: 0.4, warp: 0.18 },
+    controls: [
+      { key: 'amp1', label: 'Amp U', type: 'range', min: 0, max: 1.2, step: 0.01 },
+      { key: 'amp2', label: 'Amp V', type: 'range', min: 0, max: 1.2, step: 0.01 },
+      { key: 'freqU', label: 'Freq U', type: 'range', min: 0.2, max: 10, step: 0.1 },
+      { key: 'freqV', label: 'Freq V', type: 'range', min: 0.2, max: 10, step: 0.1 },
+      { key: 'rotate', label: 'Rotate', type: 'range', min: -1.57, max: 1.57, step: 0.01 },
+      { key: 'warp', label: 'Warp', type: 'range', min: 0, max: 0.6, step: 0.01 },
+    ]
+  },
+  ridged: {
+    defaults: { resU: 150, resV: 110, scale: 1, amplitude: 0.6, frequency: 3.2, power: 1.3 },
+    controls: [
+      { key: 'amplitude', label: 'Amplitude', type: 'range', min: 0, max: 1.5, step: 0.01 },
+      { key: 'frequency', label: 'Frequency', type: 'range', min: 0.5, max: 10, step: 0.1 },
+      { key: 'power', label: 'Sharpness', type: 'range', min: 0.5, max: 4, step: 0.05 },
+    ]
+  },
+  mountains: {
+    defaults: { resU: 160, resV: 120, scale: 1, amplitude: 0.7, bumpCount: 8, sharpness: 5.0, seed: 3 },
+    controls: [
+      { key: 'bumpCount', label: 'Bumps', type: 'number', min: 1, max: 50, step: 1 },
+      { key: 'amplitude', label: 'Amplitude', type: 'range', min: 0, max: 1.2, step: 0.01 },
+      { key: 'sharpness', label: 'Sharpness', type: 'range', min: 1.0, max: 12.0, step: 0.1 },
+      { key: 'seed', label: 'Seed', type: 'number', min: 0, max: 9999, step: 1 },
+    ]
+  },
+  gyroid: {
+    defaults: { resU: 150, resV: 120, scale: 1, amplitude: 0.35, frequency: 2.2, iso: 0.0 },
+    controls: [
+      { key: 'amplitude', label: 'Amplitude', type: 'range', min: 0, max: 1.2, step: 0.01 },
+      { key: 'frequency', label: 'Frequency', type: 'range', min: 0.5, max: 8, step: 0.1 },
+      { key: 'iso', label: 'Iso Level', type: 'range', min: -1, max: 1, step: 0.01 },
+    ]
+  }
 };
+
+export function createSurfaceParams(presetName) {
+  const base = SurfacePresets[presetName]?.defaults || SurfacePresets.ripple.defaults;
+  return { type: presetName, ...JSON.parse(JSON.stringify(base)) };
+}
 
 function perlin2(x, y) { // tiny pseudo noise
   const s = Math.sin(x * 127.1 + y * 311.7) * 43758.5453; return s - Math.floor(s);
 }
+
+function seededRand(seed) { let t = seed >>> 0; return () => (t = (t * 1664525 + 1013904223) >>> 0) / 0xFFFFFFFF; }
 
 function domain({ resU, resV }) {
   const us = new Float32Array((resU+1)*(resV+1));
@@ -20,29 +91,70 @@ function domain({ resU, resV }) {
 }
 
 function mapTo3D(p, u, v) {
-  const { type, amplitude:a, frequency:f, noise:n, scale:s } = p;
+  const s = p.scale ?? 1;
   const x0 = (u-0.5)*2*s; const y0 = (v-0.5)*2*s;
   let x=x0, y=y0, z=0;
-  if (type === 'ripple') {
-    const r = Math.hypot(x0*1.1, y0*0.9);
-    z = a * Math.sin(f * r + 0.5*Math.sin(2*y0)) + n*(perlin2(x0*3,y0*3)-0.5);
-  } else if (type === 'saddle') {
-    z = a * (x0*x0 - y0*y0);
-  } else if (type === 'paraboloid') {
-    z = a * (x0*x0 + y0*y0);
-  } else if (type === 'bumps') {
-    const b1 = Math.exp(-(x0*x0+y0*y0)*1.6);
-    const b2 = Math.exp(-((x0-0.6)**2+(y0+0.2)**2)*6.0);
-    const b3 = Math.exp(-((x0+0.2)**2+(y0-0.6)**2)*7.0);
-    z = a*(0.7*b1 + 0.9*b2 + 0.6*b3 - 0.3);
-  } else if (type === 'swiss') {
-    const U = u * Math.PI * 3.5 + 0.3; // [0, ~11]
-    const R = 0.8 + 0.15*U;
-    x = R * Math.cos(U);
-    y = R * Math.sin(U);
-    z = (v - 0.5) * 1.2 + 0.15*Math.cos(2*U);
+  switch (p.type) {
+    case 'ripple': {
+      const a = p.amplitude ?? 0.4, f = p.frequency ?? 2.5, n = p.noise ?? 0.0;
+      const r = Math.hypot(x0*1.1, y0*0.9);
+      z = a * Math.sin(f * r + 0.5*Math.sin(2*y0)) + n*(perlin2(x0*3,y0*3)-0.5);
+      break;
+    }
+    case 'saddle': {
+      const a = p.amplitude ?? 0.5; z = a * (x0*x0 - y0*y0); break;
+    }
+    case 'paraboloid': {
+      const a = p.amplitude ?? 0.6; z = a * (x0*x0 + y0*y0); break;
+    }
+    case 'bumps': {
+      const a = p.amplitude ?? 0.35; const f = p.frequency ?? 2.0; const n = p.noise ?? 0.0;
+      z = a*Math.sin(f*x0)*Math.sin(f*0.7*y0) + n*(perlin2(x0*4,y0*4)-0.5);
+      break;
+    }
+    case 'swiss': {
+      const turns = p.turns ?? 3.5; const thick = p.thickness ?? 1.2; const wav = p.waviness ?? 0.15;
+      const U = u * Math.PI * turns + 0.3;
+      const R = 0.8 + 0.15*U;
+      x = R * Math.cos(U);
+      y = R * Math.sin(U);
+      z = (v - 0.5) * thick + wav*Math.cos(2*U);
+      break;
+    }
+    case 'interference': {
+      const { amp1=0.35, amp2=0.25, freqU=3.0, freqV=2.0, rotate=0.0, warp=0.0 } = p;
+      const cx = Math.cos(rotate), sx = Math.sin(rotate);
+      const xr = cx*x0 - sx*y0; const yr = sx*x0 + cx*y0;
+      z = amp1*Math.sin(freqU*xr) + amp2*Math.sin(freqV*yr) + warp*Math.sin(2*xr+3*yr);
+      break;
+    }
+    case 'ridged': {
+      const { amplitude=0.6, frequency=3.0, power=1.3 } = p;
+      const rid = Math.pow(Math.abs(Math.sin(frequency*x0)) + Math.abs(Math.sin(0.8*frequency*y0)), power);
+      z = amplitude*(rid-0.8);
+      break;
+    }
+    case 'mountains': {
+      const { amplitude=0.7, bumpCount=8, sharpness=5.0, seed=3 } = p;
+      const rnd = seededRand(seed);
+      // precompute centers deterministically
+      if (!p._centers || p._centers.length !== bumpCount) {
+        p._centers = Array.from({length:bumpCount},()=>({ x:(rnd()*2-1)*s, y:(rnd()*2-1)*s, w: 0.5 + rnd()*0.8 }));
+      }
+      let h=0; for (const c of p._centers) { const dx=x0-c.x, dy=y0-c.y; h += c.w*Math.exp(-(dx*dx+dy*dy)*sharpness); }
+      z = amplitude*(h - 0.5);
+      break;
+    }
+    case 'gyroid': {
+      const { amplitude=0.35, frequency=2.2, iso=0.0 } = p;
+      // Use a thin slice of the gyroid implicit surface: sin x cos y + sin y cos z + sin z cos x = iso
+      // We approximate height z from x,y by solving a simplified form.
+      const gx = Math.sin(frequency*x0)*Math.cos(frequency*y0) + Math.sin(frequency*y0)*Math.cos(frequency*x0);
+      z = amplitude*(gx - iso) + 0.15*Math.sin(0.7*frequency*x0+1.1*frequency*y0);
+      break;
+    }
   }
-  // add a mild boundary irregularity so the silhouette looks organic
+  // mild boundary irregularity so the silhouette looks organic
   const b = 0.04 * Math.sin(6*u) * Math.cos(5*v);
   return new THREE.Vector3(x*(1+b), z, y*(1-b));
 }
@@ -79,7 +191,7 @@ export function buildSurface(p) {
   geometry.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
   geometry.computeVertexNormals();
 
-  const material = new THREE.MeshStandardMaterial({ vertexColors: true, metalness: 0.0, roughness: 0.9, side: THREE.DoubleSide });
+  const material = new THREE.MeshStandardMaterial({ vertexColors: true, metalness: 0.0, roughness: 0.9, side: THREE.DoubleSide, transparent: true, opacity: 1 });
   const mesh = new THREE.Mesh(geometry, material);
 
   const group = new THREE.Group();
@@ -136,4 +248,3 @@ export function colorizeGeometry(geometry, options) {
   geometry.setAttribute('color', new THREE.BufferAttribute(colors,3));
   geometry.attributes.color.needsUpdate = true;
 }
-
