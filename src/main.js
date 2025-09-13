@@ -226,10 +226,17 @@ function savePNG() {
 
 function exportGLB(group) {
   const exporter = new GLTFExporter();
-  exporter.parse(group, (gltf) => {
-    const blob = new Blob([JSON.stringify(gltf)], { type: 'model/gltf+json' });
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'surface.gltf'; a.click();
-  }, { binary: false });
+  exporter.parse(group, (result) => {
+    let blob, filename;
+    if (result instanceof ArrayBuffer) {
+      blob = new Blob([result], { type: 'model/gltf-binary' });
+      filename = 'surface.glb';
+    } else {
+      blob = new Blob([JSON.stringify(result)], { type: 'model/gltf+json' });
+      filename = 'surface.gltf';
+    }
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = filename; a.click();
+  }, { binary: true });
 }
 
 function exportOBJ(group) {
