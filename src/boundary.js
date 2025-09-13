@@ -94,10 +94,11 @@ function joinSegments(segs) {
 }
 
 function polylineToGeometry(loop) {
+  // ensure closed by repeating the first point at the end
+  if (loop.length && (loop[0] !== loop[loop.length-1])) loop = [...loop, loop[0]];
   const arr = new Float32Array(loop.length*3);
   let k=0; for (const p of loop) { arr[k++]=p[0]; arr[k++]=p[1]; arr[k++]=p[2]; }
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(arr,3));
   return geo;
 }
-

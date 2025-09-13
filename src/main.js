@@ -386,16 +386,36 @@ function buildPresetParamsUI(presetName) {
 
 function toLine2(bufferGeo, { style, color, alpha, width }) {
   const positions = bufferGeo.getAttribute('position').array;
+  const densified = densifyPositions(positions, Math.max(1, Math.ceil(width * 0.6)));
   const geo = new LineGeometry();
-  geo.setPositions(Array.from(positions));
+  geo.setPositions(Array.from(densified));
   const mat = new LineMaterial({
     color: color.getHex(), transparent: alpha < 1, opacity: alpha, linewidth: width,
     dashed: style !== 'solid', dashSize: style==='dotted'?0.05:0.14, gapSize: style==='dotted'?0.12:0.06,
   });
+  mat.depthTest = false; // draw on top, avoid z-fighting hooks
+  mat.alphaToCoverage = true;
   mat.resolution.set(renderer.domElement.clientWidth, renderer.domElement.clientHeight);
   const line = new Line2(geo, mat);
   if (style !== 'solid') line.computeLineDistances();
   return line;
+}
+
+// densify line positions to reduce sharp miter artifacts for thick solid lines
+function densifyPositions(arr, nSub) {
+  if (!arr || arr.length < 6 || nSub <= 1) return arr;
+  const out = [];
+  const N = arr.length/3;
+  for (let i=0;i<N-1;i++) {
+    const x1=arr[i*3], y1=arr[i*3+1], z1=arr[i*3+2];
+    const x2=arr[(i+1)*3], y2=arr[(i+1)*3+1], z2=arr[(i+1)*3+2];
+    out.push(x1,y1,z1);
+    for (let s=1;s<nSub;s++) {
+      const t=s/nSub; out.push(x1+(x2-x1)*t, y1+(y2-y1)*t, z1+(z2-z1)*t);
+    }
+  }
+  out.push(arr[(N-1)*3], arr[(N-1)*3+1], arr[(N-1)*3+2]);
+  return new Float32Array(out);
 }
 
 function randomizeCurrentPreset() {
