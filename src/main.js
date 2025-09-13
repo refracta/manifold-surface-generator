@@ -380,6 +380,7 @@ updateColors();
 animate();
 
 // ---------------- URL state sync (save/load) ----------------
+let urlTimer = null; // declare before first use to avoid TDZ
 const DEFAULTS = snapshotConfig();
 applyConfigFromURL();
 scheduleUpdateURL();
@@ -584,7 +585,7 @@ function updateURLFromState() {
   const url = window.location.pathname + (sp.toString() ? ('?' + sp.toString()) : '');
   window.history.replaceState({}, '', url);
 }
-let urlTimer; function scheduleUpdateURL(){ clearTimeout(urlTimer); urlTimer=setTimeout(updateURLFromState, 200); }
+function scheduleUpdateURL(){ if (urlTimer) clearTimeout(urlTimer); urlTimer=setTimeout(updateURLFromState, 200); }
 
 function applyConfigFromURL() {
   const sp = new URLSearchParams(window.location.search);
