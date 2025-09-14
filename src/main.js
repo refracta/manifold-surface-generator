@@ -608,7 +608,12 @@ function snapshotConfig() {
       solid: document.getElementById('solidColor').value,
       opacity: parseFloat(document.getElementById('surfaceOpacity').value),
       axis: document.getElementById('gradAxis').value,
-      stops: readGradientStops()
+      stops: readGradientStops(),
+      unlit: !!document.getElementById('unlit')?.checked,
+      shadingStrength: parseFloat(document.getElementById('shadingStrength')?.value || '1'),
+      emissiveIntensity: parseFloat(document.getElementById('emissiveIntensity')?.value || '0'),
+      toneMapping: document.getElementById('toneMapping')?.value || 'none',
+      exposure: parseFloat(document.getElementById('exposure')?.value || '1')
     },
     geodesics: {
       enable: !!document.getElementById('geoEnable').checked,
@@ -630,6 +635,11 @@ function snapshotConfig() {
       outline: parseFloat(document.getElementById('markerOutline')?.value || '3'),
       outlineColor: document.getElementById('markerOutlineColor')?.value || '#ffffff',
       items: markerLayer.markers.map(m => ({ x: m.position.x, y: m.position.y, z: m.position.z, shape: m.shape || 'circle', size: m.size, color: m.color, alpha: m.alpha, outline: m.outline, outlineColor: m.outlineColor }))
+    }
+    ,lighting: {
+      amb: parseFloat(document.getElementById('ambIntensity')?.value || '0.6'),
+      hemi: parseFloat(document.getElementById('hemiIntensity')?.value || '0.5'),
+      dir: parseFloat(document.getElementById('dirIntensity')?.value || '0.8')
     }
   };
   // preset specific values
@@ -722,6 +732,11 @@ function applyConfig(diff) {
     if (c.opacity!=null) document.getElementById('surfaceOpacity').value = c.opacity;
     if (c.axis) document.getElementById('gradAxis').value = c.axis;
     if (c.stops) { document.getElementById('stops').innerHTML=''; for (const s of c.stops) addStopRow(s.t, s.color); }
+    if (c.unlit!=null) document.getElementById('unlit').checked = !!c.unlit;
+    if (c.shadingStrength!=null) document.getElementById('shadingStrength').value = c.shadingStrength;
+    if (c.emissiveIntensity!=null) document.getElementById('emissiveIntensity').value = c.emissiveIntensity;
+    if (c.toneMapping) document.getElementById('toneMapping').value = c.toneMapping;
+    if (c.exposure!=null) document.getElementById('exposure').value = c.exposure;
   }
   // Geodesics
   if (diff.geodesics) {
@@ -755,6 +770,13 @@ function applyConfig(diff) {
       }
     }
   }
+  // Lighting
+  if (diff.lighting) {
+    const l = diff.lighting;
+    if (l.amb!=null) document.getElementById('ambIntensity').value = l.amb;
+    if (l.hemi!=null) document.getElementById('hemiIntensity').value = l.hemi;
+    if (l.dir!=null) document.getElementById('dirIntensity').value = l.dir;
+  }
   // Wireframe
   if (diff.wireframe!=null) document.getElementById('wireframe').checked = !!diff.wireframe;
 
@@ -765,4 +787,6 @@ function applyConfig(diff) {
   updateClip();
   rebuildGeodesics();
   rebuildBoundaryLines();
+  applyRendererSettings();
+  applyMaterialSettings();
 }
