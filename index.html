@@ -49,7 +49,7 @@
             <input id="scale" type="range" min="0.5" max="3" step="0.1" value="1" />
           </div>
           <div id="presetParams" class="column"></div>
-          <details>
+          <details open>
             <summary>Mask</summary>
             <div class="row">
               <label>Mode</label>
@@ -142,6 +142,48 @@
             <div id="stops"></div>
             <button id="addStop">Add Stop</button>
           </div>
+          <div class="row">
+            <label>Exact Color</label>
+            <input id="unlit" type="checkbox" />
+          </div>
+          <div class="row">
+            <label>Shading</label>
+            <input id="shadingStrength" type="range" min="0" max="1" step="0.01" value="1" />
+          </div>
+          <div class="row">
+            <label>Emissive</label>
+            <input id="emissiveIntensity" type="range" min="0" max="2" step="0.01" value="0" />
+          </div>
+          <div class="row">
+            <label>Tone Map</label>
+            <select id="toneMapping">
+              <option value="none">None</option>
+              <option value="aces">ACES</option>
+              <option value="reinhard">Reinhard</option>
+              <option value="cineon">Cineon</option>
+              <option value="linear">Linear</option>
+            </select>
+          </div>
+          <div class="row">
+            <label>Exposure</label>
+            <input id="exposure" type="range" min="0.1" max="2" step="0.01" value="1" />
+          </div>
+        </details>
+
+        <details open>
+          <summary>Lighting</summary>
+          <div class="row">
+            <label>Ambient</label>
+            <input id="ambIntensity" type="range" min="0" max="2" step="0.01" value="0.6" />
+          </div>
+          <div class="row">
+            <label>Hemi</label>
+            <input id="hemiIntensity" type="range" min="0" max="2" step="0.01" value="0.5" />
+          </div>
+          <div class="row">
+            <label>Dir</label>
+            <input id="dirIntensity" type="range" min="0" max="2" step="0.01" value="0.8" />
+          </div>
         </details>
 
         <details open>
@@ -199,7 +241,7 @@
           </div>
         </details>
 
-        <details>
+        <details open>
           <summary>Markers</summary>
           <div class="row">
             <label>Enable</label>

@@ -15,6 +15,7 @@ const container = document.getElementById('canvas-container');
 const markerLayer = new MarkerLayer(document.getElementById('marker-layer'));
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
 container.appendChild(renderer.domElement);
@@ -34,7 +35,10 @@ controls.addEventListener('end', () => scheduleUpdateURL());
 renderer.domElement.addEventListener('wheel', () => scheduleUpdateURL(), { passive: true });
 
 // Lights
-scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+const amb = new THREE.AmbientLight(0xffffff, 0.6);
+scene.add(amb);
+const hemi = new THREE.HemisphereLight(0xffffff, 0xffffff, 0.5);
+hemi.position.set(0,1,0); scene.add(hemi);
 const dir = new THREE.DirectionalLight(0xffffff, 0.8);
 dir.position.set(2, 3, 2);
 scene.add(dir);
@@ -58,6 +62,7 @@ function regenerateSurface() {
   updateClip();
   rebuildGeodesics();
   rebuildBoundaryLines();
+  applyMaterialSettings();
 }
 
 function rebuildGeodesics() {
@@ -108,6 +113,7 @@ function updateColors() {
   }
   const op = parseFloat(document.getElementById('surfaceOpacity').value);
   surfaceState.mesh.material.opacity = op; surfaceState.mesh.material.transparent = op < 1;
+  applyMaterialSettings();
 }
 
 // UI wiring
@@ -162,6 +168,15 @@ document.getElementById('colorMode').addEventListener('change', (e) => {
 document.getElementById('solidColor').addEventListener('input', updateColors);
 document.getElementById('gradAxis').addEventListener('change', updateColors);
 document.getElementById('addStop').addEventListener('click', () => { addStopRow(Math.random(), '#'+Math.floor(Math.random()*16777215).toString(16).padStart(6,'0')); updateColors(); });
+document.getElementById('unlit').addEventListener('change', applyMaterialSettings);
+document.getElementById('shadingStrength').addEventListener('input', applyMaterialSettings);
+document.getElementById('emissiveIntensity').addEventListener('input', applyMaterialSettings);
+document.getElementById('toneMapping').addEventListener('change', applyRendererSettings);
+document.getElementById('exposure').addEventListener('input', applyRendererSettings);
+
+document.getElementById('ambIntensity').addEventListener('input', () => { amb.intensity = parseFloat(document.getElementById('ambIntensity').value) * parseFloat(document.getElementById('shadingStrength').value); });
+document.getElementById('hemiIntensity').addEventListener('input', () => { hemi.intensity = parseFloat(document.getElementById('hemiIntensity').value) * parseFloat(document.getElementById('shadingStrength').value); });
+document.getElementById('dirIntensity').addEventListener('input', () => { dir.intensity = parseFloat(document.getElementById('dirIntensity').value) * parseFloat(document.getElementById('shadingStrength').value); });
 document.getElementById('surfaceOpacity').addEventListener('input', updateColors);
 
 // Clip/mask UI
@@ -481,6 +496,43 @@ function densifyPositions(arr, nSub) {
   }
   out.push(arr[(N-1)*3], arr[(N-1)*3+1], arr[(N-1)*3+2]);
   return new Float32Array(out);
+}
+
+function applyRendererSettings() {
+  const tm = document.getElementById('toneMapping').value;
+  const map = { none: THREE.NoToneMapping, aces: THREE.ACESFilmicToneMapping, reinhard: THREE.ReinhardToneMapping, cineon: THREE.CineonToneMapping, linear: THREE.LinearToneMapping };
+  renderer.toneMapping = map[tm] ?? THREE.NoToneMapping;
+  renderer.toneMappingExposure = parseFloat(document.getElementById('exposure').value);
+}
+
+function applyMaterialSettings() {
+  if (!surfaceState) return;
+  const unlit = document.getElementById('unlit').checked;
+  const emiss = parseFloat(document.getElementById('emissiveIntensity').value);
+  const shadeK = parseFloat(document.getElementById('shadingStrength').value);
+  const op = parseFloat(document.getElementById('surfaceOpacity').value);
+  // Update lights with shading strength
+  const ambBase = parseFloat(document.getElementById('ambIntensity').value);
+  const hemiBase = parseFloat(document.getElementById('hemiIntensity').value);
+  const dirBase = parseFloat(document.getElementById('dirIntensity').value);
+  amb.intensity = ambBase * shadeK;
+  hemi.intensity = hemiBase * shadeK;
+  dir.intensity = dirBase * shadeK;
+
+  const prev = surfaceState.mesh.material;
+  if (unlit) {
+    if (!(prev && prev.isMeshBasicMaterial)) {
+      const mat = new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide, transparent: op < 1, opacity: op });
+      surfaceState.mesh.material = mat;
+    } else { prev.opacity = op; prev.transparent = op < 1; }
+  } else {
+    if (!(prev && prev.isMeshStandardMaterial)) {
+      const mat = new THREE.MeshStandardMaterial({ vertexColors: true, metalness: 0.0, roughness: 0.6, side: THREE.DoubleSide, transparent: op < 1, opacity: op });
+      surfaceState.mesh.material = mat;
+    } else { prev.opacity = op; prev.transparent = op < 1; }
+    surfaceState.mesh.material.emissive = new THREE.Color(0xffffff);
+    surfaceState.mesh.material.emissiveIntensity = emiss;
+  }
 }
 
 function randomizeCurrentPreset() {

@@ -279,14 +279,14 @@ export function colorizeGeometry(geometry, options) {
   const tmp = new THREE.Color();
 
   if (options.mode === 'solid') {
-    tmp.set(options.color || '#cccccc');
+    tmp.set(options.color || '#cccccc').convertSRGBToLinear();
     for (let i=0;i<count;i++) {
       colors[i*3+0]=tmp.r; colors[i*3+1]=tmp.g; colors[i*3+2]=tmp.b;
     }
   } else {
     const axis = options.axis || 'u';
     const stops = (options.stops && options.stops.length>=2) ? options.stops : [ {t:0,color:'#a8c7ff'},{t:1,color:'#ff9aa2'} ];
-    const stopColors = stops.map(s => ({ t: s.t, c: new THREE.Color(s.color) }));
+    const stopColors = stops.map(s => ({ t: s.t, c: new THREE.Color(s.color).convertSRGBToLinear() }));
     function sample(t) {
       t = Math.min(1, Math.max(0, t));
       for (let i=0;i<stopColors.length-1;i++) {
