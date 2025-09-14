@@ -8,6 +8,7 @@ export class MarkerLayer {
     this.markers = []; // { position, el, svg, shapeEl, ... }
     this.visible = true;
     this.outline = 3; // px
+    this.outlineColor = '#ffffff';
   }
 
   addMarker(position, { shape='circle', size=14, color='#e53935', alpha=1 }={}) {
@@ -42,7 +43,7 @@ export class MarkerLayer {
       shapeEl.setAttribute('points', pts.map(p => p.join(',')).join(' '));
     }
     shapeEl.setAttribute('fill', hexToRgba(color, alpha));
-    shapeEl.setAttribute('stroke', '#ffffff');
+    shapeEl.setAttribute('stroke', this.outlineColor || '#ffffff');
     shapeEl.setAttribute('stroke-linejoin', 'round');
     shapeEl.setAttribute('stroke-linecap', 'round');
     shapeEl.setAttribute('stroke-width', `${this.outline}`);
@@ -97,6 +98,11 @@ export class MarkerLayer {
   setOutline(px) {
     this.outline = Math.max(0, px);
     for (const m of this.markers) { m.shapeEl.setAttribute('stroke-width', `${this.outline}`); }
+  }
+
+  setOutlineColor(hex) {
+    this.outlineColor = hex || '#ffffff';
+    for (const m of this.markers) m.shapeEl.setAttribute('stroke', this.outlineColor);
   }
 }
 

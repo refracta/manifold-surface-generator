@@ -266,10 +266,12 @@ const markerSize = document.getElementById('markerSize');
 const markerColor = document.getElementById('markerColor');
 const markerAlpha = document.getElementById('markerAlpha');
 const markerOutline = document.getElementById('markerOutline');
+const markerOutlineColor = document.getElementById('markerOutlineColor');
 document.getElementById('clearMarkers').onclick = () => { markerLayer.clear(); scheduleUpdateURL(); };
 markersEnable.addEventListener('change', () => markerLayer.setVisible(markersEnable.checked));
 markerAlpha.addEventListener('input', () => markerLayer.setAlpha(parseFloat(markerAlpha.value)));
 markerOutline?.addEventListener('input', () => { markerLayer.setOutline(parseFloat(markerOutline.value)); scheduleUpdateURL(); });
+markerOutlineColor?.addEventListener('input', () => { markerLayer.setOutlineColor(markerOutlineColor.value); scheduleUpdateURL(); });
 
 // Export
 document.getElementById('savePng').onclick = savePNG;
@@ -574,6 +576,7 @@ function snapshotConfig() {
       color: document.getElementById('markerColor').value,
       alpha: parseFloat(document.getElementById('markerAlpha').value),
       outline: parseFloat(document.getElementById('markerOutline')?.value || '3'),
+      outlineColor: document.getElementById('markerOutlineColor')?.value || '#ffffff',
       items: markerLayer.markers.map(m => ({ x: m.position.x, y: m.position.y, z: m.position.z, shape: m.shape || 'circle', size: m.size, color: m.color, alpha: m.alpha }))
     }
   };
@@ -689,6 +692,7 @@ function applyConfig(diff) {
     if (mk.color) document.getElementById('markerColor').value = mk.color;
     if (mk.alpha!=null) document.getElementById('markerAlpha').value = mk.alpha;
     if (mk.outline!=null) { const e=document.getElementById('markerOutline'); if (e) e.value = mk.outline; markerLayer.setOutline(parseFloat(e.value)); }
+    if (mk.outlineColor) { const e=document.getElementById('markerOutlineColor'); if (e) e.value = mk.outlineColor; markerLayer.setOutlineColor(e.value); }
     if ('items' in mk) {
       markerLayer.clear();
       if (Array.isArray(mk.items)) {
