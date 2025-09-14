@@ -1,22 +1,56 @@
 import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
 
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
 export class MarkerLayer {
   constructor(container) {
     this.container = container; // DOM overlay container
-    this.markers = []; // { position: THREE.Vector3, el: HTMLElement }
+    this.markers = []; // { position, el, svg, shapeEl, ... }
     this.visible = true;
     this.outline = 3; // px
   }
 
   addMarker(position, { shape='circle', size=14, color='#e53935', alpha=1 }={}) {
-    const el = document.createElement('div');
-    el.className = `marker ${shape}`;
-    el.style.width = `${size}px`; el.style.height = `${size}px`;
-    el.style.background = hexToRgba(color, alpha);
-    el.style.boxShadow = '0 0 0 1px #fff, 0 0 8px rgba(0,0,0,0.3)';
-    this._applyOutline({ el, shape });
-    this.container.appendChild(el);
-    this.markers.push({ position: position.clone(), el, size, color, alpha, shape, sx:0, sy:0 });
+    const wrap = document.createElement('div');
+    wrap.className = 'marker';
+    wrap.style.width = `${size}px`; wrap.style.height = `${size}px`;
+    const svg = document.createElementNS(SVG_NS, 'svg');
+    svg.setAttribute('width', `${size}`);
+    svg.setAttribute('height', `${size}`);
+    svg.setAttribute('viewBox', `0 0 ${size} ${size}`);
+
+    let shapeEl;
+    if (shape === 'circle') {
+      shapeEl = document.createElementNS(SVG_NS, 'circle');
+      const r = (size/2) - Math.max(1, this.outline);
+      shapeEl.setAttribute('cx', `${size/2}`);
+      shapeEl.setAttribute('cy', `${size/2}`);
+      shapeEl.setAttribute('r', `${Math.max(1, r)}`);
+    } else if (shape === 'square') {
+      const m = Math.max(1, this.outline);
+      shapeEl = document.createElementNS(SVG_NS, 'rect');
+      shapeEl.setAttribute('x', `${m}`);
+      shapeEl.setAttribute('y', `${m}`);
+      shapeEl.setAttribute('width', `${size-2*m}`);
+      shapeEl.setAttribute('height', `${size-2*m}`);
+      shapeEl.setAttribute('rx', '2');
+    } else {
+      // triangle or pentagon
+      const n = (shape === 'triangle') ? 3 : 5;
+      const pts = regularPolygonPoints(n, size, this.outline, (shape === 'triangle') ? -Math.PI/2 : -Math.PI/2);
+      shapeEl = document.createElementNS(SVG_NS, 'polygon');
+      shapeEl.setAttribute('points', pts.map(p => p.join(',')).join(' '));
+    }
+    shapeEl.setAttribute('fill', hexToRgba(color, alpha));
+    shapeEl.setAttribute('stroke', '#ffffff');
+    shapeEl.setAttribute('stroke-linejoin', 'round');
+    shapeEl.setAttribute('stroke-linecap', 'round');
+    shapeEl.setAttribute('stroke-width', `${this.outline}`);
+
+    svg.appendChild(shapeEl);
+    wrap.appendChild(svg);
+    this.container.appendChild(wrap);
+    this.markers.push({ position: position.clone(), el: wrap, svg, shapeEl, size, color, alpha, shape, sx:0, sy:0 });
   }
 
   clear() {
@@ -57,23 +91,23 @@ export class MarkerLayer {
   }
 
   setAlpha(alpha) {
-    for (const m of this.markers) { m.alpha = alpha; m.el.style.background = hexToRgba(m.color, alpha); }
+    for (const m of this.markers) { m.alpha = alpha; m.shapeEl.setAttribute('fill', hexToRgba(m.color, alpha)); }
   }
 
   setOutline(px) {
     this.outline = Math.max(0, px);
-    for (const m of this.markers) this._applyOutline(m);
+    for (const m of this.markers) { m.shapeEl.setAttribute('stroke-width', `${this.outline}`); }
   }
+}
 
-  _applyOutline(m) {
-    const px = this.outline || 0;
-    if (px <= 0) { m.el.style.filter = 'drop-shadow(0 0 6px rgba(0,0,0,0.35))'; return; }
-    if (m.shape === 'triangle' || m.shape === 'pentagon') {
-      m.el.style.filter = `drop-shadow(0 0 0 #fff) drop-shadow(0 0 ${px}px #fff) drop-shadow(0 0 8px rgba(0,0,0,0.35))`;
-    } else {
-      m.el.style.filter = `drop-shadow(0 0 ${px}px #fff) drop-shadow(0 0 6px rgba(0,0,0,0.35))`;
-    }
+function regularPolygonPoints(n, size, margin=0, rotation=0) {
+  const cx = size/2, cy = size/2; const r = (size/2) - Math.max(1, margin);
+  const pts = [];
+  for (let i=0;i<n;i++) {
+    const a = rotation + i*(2*Math.PI/n);
+    pts.push([cx + r*Math.cos(a), cy + r*Math.sin(a)]);
   }
+  return pts;
 }
 
 function hexToRgba(hex, a=1) {
