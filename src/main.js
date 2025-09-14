@@ -289,7 +289,7 @@ markerOutline?.addEventListener('input', () => { markerLayer.setDefaultOutline(p
 markerOutlineColor?.addEventListener('input', () => { markerLayer.setDefaultOutlineColor(markerOutlineColor.value); scheduleUpdateURL(); });
 
 // Export
-document.getElementById('savePng').onclick = savePNG;
+document.getElementById('savePng').onclick = () => savePNG(parseFloat(document.getElementById('pngScale').value||'1'));
 document.getElementById('exportGLB').onclick = () => exportGLB(surfaceGroup);
 document.getElementById('exportOBJ').onclick = () => exportOBJ(surfaceGroup);
 document.getElementById('resetCamera').onclick = () => { camera.position.copy(defaultCamPos); controls.target.set(0,0,0); controls.update(); };
@@ -372,9 +372,32 @@ window.addEventListener('resize', () => {
 });
 
 // Export helpers
-function savePNG() {
+function savePNG(scale=1) {
+  scale = Math.max(1, Math.min(8, isNaN(scale)?1:scale));
+  const canvas = renderer.domElement;
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  const oldPR = renderer.getPixelRatio();
+  const oldSize = new THREE.Vector2(); renderer.getSize(oldSize);
+
+  // Upscale render
+  renderer.setPixelRatio(1);
+  renderer.setSize(w*scale, h*scale, false);
+  // Update fat line materials resolution
+  setLineResolutions(w*scale, h*scale);
+  renderer.render(scene, camera);
   const data = renderer.domElement.toDataURL('image/png');
-  const a = document.createElement('a'); a.href = data; a.download = 'manifold.png'; a.click();
+
+  // Restore
+  renderer.setPixelRatio(oldPR);
+  renderer.setSize(oldSize.x, oldSize.y, false);
+  setLineResolutions(oldSize.x, oldSize.y);
+  renderOnce();
+
+  const a = document.createElement('a'); a.href = data; a.download = `manifold_${w*scale}x${h*scale}.png`; a.click();
+}
+
+function setLineResolutions(w,h){
+  [...geodesicGroup.children, ...clipLinesGroup.children].forEach(obj => { if (obj.material && obj.material.resolution) obj.material.resolution.set(w,h); });
 }
 
 function exportGLB(group) {
