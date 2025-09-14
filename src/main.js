@@ -48,8 +48,14 @@ let surfaceGroup = null; // contains mesh and optional lines
 let surfaceState = null; // geometry bookkeeping
 let geodesicGroup = new THREE.Group();
 let clipLinesGroup = new THREE.Group();
+let vectorGroup = new THREE.Group();
+let uvPathGroup = new THREE.Group();
+let vectorItems = [];
+let uvItems = [];
 scene.add(geodesicGroup);
 scene.add(clipLinesGroup);
+scene.add(vectorGroup);
+scene.add(uvPathGroup);
 
 let params = createSurfaceParams('ripple'); // start preset
 
@@ -266,6 +272,27 @@ document.getElementById('addPath').onclick = () => {
 };
 document.getElementById('clearGeodesics').onclick = () => { geodesicGroup.clear(); rebuildGeodesics(); };
 
+// Vector tools state
+let vecPickStart=false, vecPickEnd=false, vecStart=null, vecEnd=null;
+document.getElementById('vecPickStart').onclick=()=>{ vecPickStart=true; vecPickEnd=false; };
+document.getElementById('vecPickEnd').onclick=()=>{ vecPickEnd=true; vecPickStart=false; };
+document.getElementById('addVector').onclick=()=>{
+  if (!vecStart || !vecEnd) return;
+  addVectorArrow(vecStart, vecEnd);
+  vecStart=vecEnd=null; vecPickStart=vecPickEnd=false; scheduleUpdateURL();
+};
+document.getElementById('clearVectors').onclick=()=>{ vectorGroup.clear(); scheduleUpdateURL(); };
+
+let uvPickStart=false, uvPickEnd=false, uvStart=null, uvEnd=null;
+document.getElementById('uvPickStart').onclick=()=>{ uvPickStart=true; uvPickEnd=false; };
+document.getElementById('uvPickEnd').onclick=()=>{ uvPickEnd=true; uvPickStart=false; };
+document.getElementById('addUVPath').onclick=()=>{
+  if (!uvStart || !uvEnd) return;
+  addUVLinePath(uvStart, uvEnd);
+  uvStart=uvEnd=null; uvPickStart=uvPickEnd=false; scheduleUpdateURL();
+};
+document.getElementById('clearUVPaths').onclick=()=>{ uvPathGroup.clear(); uvItems = []; scheduleUpdateURL(); };
+
 // Right-click: remove nearest marker
 renderer.domElement.addEventListener('contextmenu', (ev) => {
   ev.preventDefault();
@@ -342,6 +369,20 @@ renderer.domElement.addEventListener('pointerup', (ev) => {
     if (pickingEnd) { pickedEnd = info; pickingEnd = false; }
     return;
   }
+  if (vecPickStart || vecPickEnd) {
+    const hitUV = hit.uv || new THREE.Vector2();
+    const info = { uv: new THREE.Vector2(hitUV.x, hitUV.y), position: hit.point.clone() };
+    if (vecPickStart) { vecStart = info; vecPickStart = false; }
+    if (vecPickEnd) { vecEnd = info; vecPickEnd = false; }
+    return;
+  }
+  if (uvPickStart || uvPickEnd) {
+    const hitUV = hit.uv || new THREE.Vector2();
+    const info = { uv: new THREE.Vector2(hitUV.x, hitUV.y), position: hit.point.clone() };
+    if (uvPickStart) { uvStart = info; uvPickStart = false; }
+    if (uvPickEnd) { uvEnd = info; uvPickEnd = false; }
+    return;
+  }
   if (markersEnable.checked) {
     markerLayer.addMarker(hit.point.clone(), {
       shape: markerShape.value,
@@ -397,7 +438,7 @@ function savePNG(scale=1) {
 }
 
 function setLineResolutions(w,h){
-  [...geodesicGroup.children, ...clipLinesGroup.children].forEach(obj => { if (obj.material && obj.material.resolution) obj.material.resolution.set(w,h); });
+  [...geodesicGroup.children, ...clipLinesGroup.children, ...vectorGroup.children, ...uvPathGroup.children].forEach(obj => { if (obj.material && obj.material.resolution) obj.material.resolution.set(w,h); });
 }
 
 function exportGLB(group) {
@@ -558,6 +599,59 @@ function applyMaterialSettings() {
   }
 }
 
+// Build a vector arrow between two picked points (straight segment + cone head)
+function addVectorArrow(startInfo, endInfo){
+  const color = new THREE.Color(document.getElementById('vecColor').value);
+  const width = parseFloat(document.getElementById('vecWidth').value);
+  const style = document.getElementById('vecStyle').value;
+  const dash = parseFloat(document.getElementById('geoDash')?.value || '0.14');
+  const gap = parseFloat(document.getElementById('geoGap')?.value || '0.06');
+  const positions = new Float32Array([
+    startInfo.position.x, startInfo.position.y, startInfo.position.z,
+    endInfo.position.x, endInfo.position.y, endInfo.position.z,
+  ]);
+  const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(positions,3));
+  const line = toLine2(geo, { style, color, alpha: 1, width, depthTest: true, dash, gap });
+  vectorGroup.add(line);
+  // Arrow head
+  const dir = new THREE.Vector3().subVectors(endInfo.position, startInfo.position);
+  const len = dir.length(); if (len > 1e-6){
+    dir.normalize();
+    const headLen = Math.max(0.02, 0.06 * len);
+    const headRad = Math.max(0.01, 0.02 * len);
+    const coneGeo = new THREE.ConeGeometry(headRad, headLen, 12);
+    const coneMat = new THREE.MeshStandardMaterial({ color: color.getHex(), emissive: 0x000000, roughness: 0.5, metalness: 0.0 });
+    const cone = new THREE.Mesh(coneGeo, coneMat);
+    cone.position.copy(endInfo.position);
+    cone.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), dir.clone().normalize());
+    cone.position.add(dir.clone().multiplyScalar(-headLen*0.5));
+    vectorGroup.add(cone);
+  }
+}
+
+// Build a path that follows straight line in UV and maps to surface
+function addUVLinePath(startInfo, endInfo){
+  const color = new THREE.Color(document.getElementById('uvColor').value);
+  const width = parseFloat(document.getElementById('uvWidth').value);
+  const style = document.getElementById('uvStyle').value;
+  const dash = parseFloat(document.getElementById('geoDash')?.value || '0.14');
+  const gap = parseFloat(document.getElementById('geoGap')?.value || '0.06');
+  const segs = 200;
+  const positions = new Float32Array(segs*3);
+  for (let i=0;i<segs;i++){
+    const t = i/(segs-1);
+    const u = startInfo.uv.x*(1-t) + endInfo.uv.x*t;
+    const v = startInfo.uv.y*(1-t) + endInfo.uv.y*t;
+    const p = sampleSurfaceAtUV(surfaceState, u, v);
+    positions[i*3+0]=p.x; positions[i*3+1]=p.y; positions[i*3+2]=p.z;
+  }
+  const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(positions,3));
+  const line = toLine2(geo, { style, color, alpha: 1, width, depthTest: true, dash, gap });
+  makeLineClippable(line.material, surfaceState.mesh);
+  setLineClip(line.material, params.clip, params.scale);
+  uvPathGroup.add(line);
+}
+
 function randomizeCurrentPreset() {
   const def = SurfacePresets[params.type]; if (!def) return;
   for (const c of def.controls) {
@@ -663,6 +757,18 @@ function snapshotConfig() {
       amb: parseFloat(document.getElementById('ambIntensity')?.value || '0.6'),
       hemi: parseFloat(document.getElementById('hemiIntensity')?.value || '0.5'),
       dir: parseFloat(document.getElementById('dirIntensity')?.value || '0.8')
+    }
+    ,vectors: {
+      color: document.getElementById('vecColor').value,
+      width: parseFloat(document.getElementById('vecWidth').value),
+      style: document.getElementById('vecStyle').value,
+      items: vectorItems
+    }
+    ,uvpaths: {
+      color: document.getElementById('uvColor').value,
+      width: parseFloat(document.getElementById('uvWidth').value),
+      style: document.getElementById('uvStyle').value,
+      items: uvItems
     }
   };
   // preset specific values
@@ -812,4 +918,32 @@ function applyConfig(diff) {
   rebuildBoundaryLines();
   applyRendererSettings();
   applyMaterialSettings();
+
+  // Restore vectors/uvpaths
+  if (diff.vectors) {
+    document.getElementById('vecColor').value = diff.vectors.color || '#000000';
+    if (diff.vectors.width!=null) document.getElementById('vecWidth').value = diff.vectors.width;
+    if (diff.vectors.style) document.getElementById('vecStyle').value = diff.vectors.style;
+    vectorGroup.clear(); vectorItems = [];
+    if (Array.isArray(diff.vectors.items)) {
+      for (const it of diff.vectors.items) {
+        const a = { position: new THREE.Vector3(it.sx, it.sy, it.sz), uv: new THREE.Vector2() };
+        const b = { position: new THREE.Vector3(it.ex, it.ey, it.ez), uv: new THREE.Vector2() };
+        addVectorArrow(a,b);
+      }
+    }
+  }
+  if (diff.uvpaths) {
+    document.getElementById('uvColor').value = diff.uvpaths.color || '#000000';
+    if (diff.uvpaths.width!=null) document.getElementById('uvWidth').value = diff.uvpaths.width;
+    if (diff.uvpaths.style) document.getElementById('uvStyle').value = diff.uvpaths.style;
+    uvPathGroup.clear(); uvItems = [];
+    if (Array.isArray(diff.uvpaths.items)) {
+      for (const it of diff.uvpaths.items) {
+        const a = { position: new THREE.Vector3(), uv: new THREE.Vector2(it.su, it.sv) };
+        const b = { position: new THREE.Vector3(), uv: new THREE.Vector2(it.eu, it.ev) };
+        addUVLinePath(a,b);
+      }
+    }
+  }
 }

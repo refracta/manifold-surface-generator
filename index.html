@@ -293,6 +293,55 @@
             <input id="pngScale" type="number" min="1" max="8" step="0.5" value="1" />
           </div>
         </details>
+
+        <details open>
+          <summary>Vector Tools</summary>
+          <div style="font-weight:600;">Vector Arrow</div>
+          <div class="row">
+            <label>Color</label>
+            <input id="vecColor" type="color" value="#000000" />
+            <span style="flex:1"></span>
+            <label style="width:70px">Width</label>
+            <input id="vecWidth" type="range" min="0.5" max="8" step="0.1" value="2" />
+          </div>
+          <div class="row">
+            <label>Style</label>
+            <select id="vecStyle">
+              <option value="solid">Solid</option>
+              <option value="dashed">Dashed</option>
+              <option value="dotted">Dotted</option>
+            </select>
+          </div>
+          <div class="row">
+            <button id="vecPickStart">Pick Start</button>
+            <button id="vecPickEnd">Pick End</button>
+            <button id="addVector">Add Arrow</button>
+            <button id="clearVectors">Clear Arrows</button>
+          </div>
+
+          <div style="font-weight:600; margin-top:6px;">UV Path</div>
+          <div class="row">
+            <label>Color</label>
+            <input id="uvColor" type="color" value="#000000" />
+            <span style="flex:1"></span>
+            <label style="width:70px">Width</label>
+            <input id="uvWidth" type="range" min="0.5" max="8" step="0.1" value="2" />
+          </div>
+          <div class="row">
+            <label>Style</label>
+            <select id="uvStyle">
+              <option value="solid">Solid</option>
+              <option value="dashed">Dashed</option>
+              <option value="dotted">Dotted</option>
+            </select>
+          </div>
+          <div class="row">
+            <button id="uvPickStart">Pick Start</button>
+            <button id="uvPickEnd">Pick End</button>
+            <button id="addUVPath">Add UV Path</button>
+            <button id="clearUVPaths">Clear UV Paths</button>
+          </div>
+        </details>
         <div class="row" style="margin-top:8px;justify-content:flex-end;">
           <button id="resetAll">Reset All</button>
         </div>

@@ -311,6 +311,26 @@ export function colorizeGeometry(geometry, options) {
   geometry.attributes.color.needsUpdate = true;
 }
 
+// Bilinear sampling of the surface at (u,v)
+export function sampleSurfaceAtUV(state, u, v){
+  u = Math.min(1, Math.max(0, u));
+  v = Math.min(1, Math.max(0, v));
+  const { resU, resV } = state;
+  const i = u*resU, j = v*resV;
+  const i0 = Math.floor(i), j0 = Math.floor(j);
+  const i1 = Math.min(resU, i0+1), j1 = Math.min(resV, j0+1);
+  const fu = i - i0, fv = j - j0;
+  const idx = (ii,jj)=> jj*(resU+1)+ii;
+  const pos = state.geometry.attributes.position;
+  const p00 = new THREE.Vector3(pos.getX(idx(i0,j0)), pos.getY(idx(i0,j0)), pos.getZ(idx(i0,j0)));
+  const p10 = new THREE.Vector3(pos.getX(idx(i1,j0)), pos.getY(idx(i1,j0)), pos.getZ(idx(i1,j0)));
+  const p01 = new THREE.Vector3(pos.getX(idx(i0,j1)), pos.getY(idx(i0,j1)), pos.getZ(idx(i0,j1)));
+  const p11 = new THREE.Vector3(pos.getX(idx(i1,j1)), pos.getY(idx(i1,j1)), pos.getZ(idx(i1,j1)));
+  const a = p00.lerp(p10, fu);
+  const b = p01.lerp(p11, fu);
+  return a.lerp(b, fv);
+}
+
 export function createSurfaceMaterial() {
   const material = new THREE.MeshStandardMaterial({ vertexColors: true, metalness: 0.0, roughness: 0.9, side: THREE.DoubleSide, transparent: true, opacity: 1 });
   makeClippable(material);
