@@ -11,7 +11,7 @@ export class MarkerLayer {
     this.outlineColor = '#ffffff';
   }
 
-  addMarker(position, { shape='circle', size=14, color='#e53935', alpha=1 }={}) {
+  addMarker(position, { shape='circle', size=14, color='#e53935', alpha=1, outline, outlineColor }={}) {
     const wrap = document.createElement('div');
     wrap.className = 'marker';
     wrap.style.width = `${size}px`; wrap.style.height = `${size}px`;
@@ -20,15 +20,17 @@ export class MarkerLayer {
     svg.setAttribute('height', `${size}`);
     svg.setAttribute('viewBox', `0 0 ${size} ${size}`);
 
+    const ow = (outline != null) ? outline : this.outline;
+    const oc = outlineColor || this.outlineColor || '#ffffff';
     let shapeEl;
     if (shape === 'circle') {
       shapeEl = document.createElementNS(SVG_NS, 'circle');
-      const r = (size/2) - Math.max(1, this.outline);
+      const r = (size/2) - Math.max(1, ow);
       shapeEl.setAttribute('cx', `${size/2}`);
       shapeEl.setAttribute('cy', `${size/2}`);
       shapeEl.setAttribute('r', `${Math.max(1, r)}`);
     } else if (shape === 'square') {
-      const m = Math.max(1, this.outline);
+      const m = Math.max(1, ow);
       shapeEl = document.createElementNS(SVG_NS, 'rect');
       shapeEl.setAttribute('x', `${m}`);
       shapeEl.setAttribute('y', `${m}`);
@@ -38,20 +40,20 @@ export class MarkerLayer {
     } else {
       // triangle or pentagon
       const n = (shape === 'triangle') ? 3 : 5;
-      const pts = regularPolygonPoints(n, size, this.outline, (shape === 'triangle') ? -Math.PI/2 : -Math.PI/2);
+      const pts = regularPolygonPoints(n, size, ow, (shape === 'triangle') ? -Math.PI/2 : -Math.PI/2);
       shapeEl = document.createElementNS(SVG_NS, 'polygon');
       shapeEl.setAttribute('points', pts.map(p => p.join(',')).join(' '));
     }
     shapeEl.setAttribute('fill', hexToRgba(color, alpha));
-    shapeEl.setAttribute('stroke', this.outlineColor || '#ffffff');
+    shapeEl.setAttribute('stroke', oc);
     shapeEl.setAttribute('stroke-linejoin', 'round');
     shapeEl.setAttribute('stroke-linecap', 'round');
-    shapeEl.setAttribute('stroke-width', `${this.outline}`);
+    shapeEl.setAttribute('stroke-width', `${ow}`);
 
     svg.appendChild(shapeEl);
     wrap.appendChild(svg);
     this.container.appendChild(wrap);
-    this.markers.push({ position: position.clone(), el: wrap, svg, shapeEl, size, color, alpha, shape, sx:0, sy:0 });
+    this.markers.push({ position: position.clone(), el: wrap, svg, shapeEl, size, color, alpha, shape, outline: ow, outlineColor: oc, sx:0, sy:0 });
   }
 
   clear() {
@@ -95,15 +97,9 @@ export class MarkerLayer {
     for (const m of this.markers) { m.alpha = alpha; m.shapeEl.setAttribute('fill', hexToRgba(m.color, alpha)); }
   }
 
-  setOutline(px) {
-    this.outline = Math.max(0, px);
-    for (const m of this.markers) { m.shapeEl.setAttribute('stroke-width', `${this.outline}`); }
-  }
+  setDefaultOutline(px) { this.outline = Math.max(0, px); }
 
-  setOutlineColor(hex) {
-    this.outlineColor = hex || '#ffffff';
-    for (const m of this.markers) m.shapeEl.setAttribute('stroke', this.outlineColor);
-  }
+  setDefaultOutlineColor(hex) { this.outlineColor = hex || '#ffffff'; }
 }
 
 function regularPolygonPoints(n, size, margin=0, rotation=0) {

@@ -270,8 +270,8 @@ const markerOutlineColor = document.getElementById('markerOutlineColor');
 document.getElementById('clearMarkers').onclick = () => { markerLayer.clear(); scheduleUpdateURL(); };
 markersEnable.addEventListener('change', () => markerLayer.setVisible(markersEnable.checked));
 markerAlpha.addEventListener('input', () => markerLayer.setAlpha(parseFloat(markerAlpha.value)));
-markerOutline?.addEventListener('input', () => { markerLayer.setOutline(parseFloat(markerOutline.value)); scheduleUpdateURL(); });
-markerOutlineColor?.addEventListener('input', () => { markerLayer.setOutlineColor(markerOutlineColor.value); scheduleUpdateURL(); });
+markerOutline?.addEventListener('input', () => { markerLayer.setDefaultOutline(parseFloat(markerOutline.value)); scheduleUpdateURL(); });
+markerOutlineColor?.addEventListener('input', () => { markerLayer.setDefaultOutlineColor(markerOutlineColor.value); scheduleUpdateURL(); });
 
 // Export
 document.getElementById('savePng').onclick = savePNG;
@@ -577,7 +577,7 @@ function snapshotConfig() {
       alpha: parseFloat(document.getElementById('markerAlpha').value),
       outline: parseFloat(document.getElementById('markerOutline')?.value || '3'),
       outlineColor: document.getElementById('markerOutlineColor')?.value || '#ffffff',
-      items: markerLayer.markers.map(m => ({ x: m.position.x, y: m.position.y, z: m.position.z, shape: m.shape || 'circle', size: m.size, color: m.color, alpha: m.alpha }))
+      items: markerLayer.markers.map(m => ({ x: m.position.x, y: m.position.y, z: m.position.z, shape: m.shape || 'circle', size: m.size, color: m.color, alpha: m.alpha, outline: m.outline, outlineColor: m.outlineColor }))
     }
   };
   // preset specific values
@@ -691,14 +691,14 @@ function applyConfig(diff) {
     if (mk.size!=null) document.getElementById('markerSize').value = mk.size;
     if (mk.color) document.getElementById('markerColor').value = mk.color;
     if (mk.alpha!=null) document.getElementById('markerAlpha').value = mk.alpha;
-    if (mk.outline!=null) { const e=document.getElementById('markerOutline'); if (e) e.value = mk.outline; markerLayer.setOutline(parseFloat(e.value)); }
-    if (mk.outlineColor) { const e=document.getElementById('markerOutlineColor'); if (e) e.value = mk.outlineColor; markerLayer.setOutlineColor(e.value); }
+    if (mk.outline!=null) { const e=document.getElementById('markerOutline'); if (e) e.value = mk.outline; markerLayer.setDefaultOutline(parseFloat(e.value)); }
+    if (mk.outlineColor) { const e=document.getElementById('markerOutlineColor'); if (e) e.value = mk.outlineColor; markerLayer.setDefaultOutlineColor(e.value); }
     if ('items' in mk) {
       markerLayer.clear();
       if (Array.isArray(mk.items)) {
         for (const it of mk.items) {
           const p = new THREE.Vector3(it.x||0, it.y||0, it.z||0);
-          markerLayer.addMarker(p, { shape: it.shape||'circle', size: it.size||14, color: it.color||'#e53935', alpha: it.alpha==null?1:it.alpha });
+          markerLayer.addMarker(p, { shape: it.shape||'circle', size: it.size||14, color: it.color||'#e53935', alpha: it.alpha==null?1:it.alpha, outline: it.outline, outlineColor: it.outlineColor });
         }
       }
     }
