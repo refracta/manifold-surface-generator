@@ -7,11 +7,11 @@ export class MarkerLayer {
     this.container = container; // DOM overlay container
     this.markers = []; // { position, el, svg, shapeEl, ... }
     this.visible = true;
-    this.outline = 3; // px
+    this.outline = 2.5; // px default
     this.outlineColor = '#ffffff';
   }
 
-  addMarker(position, { shape='circle', size=14, color='#e53935', alpha=1, outline, outlineColor }={}) {
+  addMarker(position, { shape='circle', size=24, color='#e53935', alpha=1, outline, outlineColor }={}) {
     const wrap = document.createElement('div');
     wrap.className = 'marker';
     wrap.style.width = `${size}px`; wrap.style.height = `${size}px`;

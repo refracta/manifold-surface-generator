@@ -698,7 +698,7 @@ function applyConfig(diff) {
       if (Array.isArray(mk.items)) {
         for (const it of mk.items) {
           const p = new THREE.Vector3(it.x||0, it.y||0, it.z||0);
-          markerLayer.addMarker(p, { shape: it.shape||'circle', size: it.size||14, color: it.color||'#e53935', alpha: it.alpha==null?1:it.alpha, outline: it.outline, outlineColor: it.outlineColor });
+          markerLayer.addMarker(p, { shape: it.shape||'circle', size: it.size||24, color: it.color||'#e53935', alpha: it.alpha==null?1:it.alpha, outline: it.outline, outlineColor: it.outlineColor });
         }
       }
     }
