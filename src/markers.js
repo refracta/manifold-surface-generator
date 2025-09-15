@@ -9,6 +9,7 @@ export class MarkerLayer {
     this.visible = true;
     this.outline = 2.5; // px default
     this.outlineColor = '#ffffff';
+    this.temps = []; // temporary label markers
   }
 
   addMarker(position, { shape='circle', size=24, color='#e53935', alpha=1, outline, outlineColor }={}) {
@@ -71,6 +72,13 @@ export class MarkerLayer {
       m.sx = x; m.sy = y;
       m.el.style.display = p.z < 1 ? 'block' : 'none';
     }
+    for (const m of this.temps) {
+      const p = m.position.clone().project(camera);
+      const x = (p.x * 0.5 + 0.5) * width;
+      const y = ( -p.y * 0.5 + 0.5) * height;
+      m.el.style.left = `${x}px`; m.el.style.top = `${y}px`;
+      m.el.style.display = p.z < 1 ? 'block' : 'none';
+    }
   }
 
   removeNearestAt(clientX, clientY, maxDist=20) {
@@ -100,6 +108,16 @@ export class MarkerLayer {
   setDefaultOutline(px) { this.outline = Math.max(0, px); }
 
   setDefaultOutlineColor(hex) { this.outlineColor = hex || '#ffffff'; }
+
+  addTempLabel(position, text='S') {
+    const el = document.createElement('div');
+    el.className = 'marker label';
+    el.textContent = text;
+    this.container.appendChild(el);
+    this.temps.push({ position: position.clone(), el });
+    return el;
+  }
+  clearTemps(){ for (const t of this.temps) t.el.remove(); this.temps.length = 0; }
 }
 
 function regularPolygonPoints(n, size, margin=0, rotation=0) {

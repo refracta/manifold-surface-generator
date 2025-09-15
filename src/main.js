@@ -274,22 +274,26 @@ document.getElementById('clearGeodesics').onclick = () => { geodesicGroup.clear(
 
 // Vector tools state
 let vecPickStart=false, vecPickEnd=false, vecStart=null, vecEnd=null;
-document.getElementById('vecPickStart').onclick=()=>{ vecPickStart=true; vecPickEnd=false; };
-document.getElementById('vecPickEnd').onclick=()=>{ vecPickEnd=true; vecPickStart=false; };
+const btnVecStart = document.getElementById('vecPickStart');
+const btnVecEnd = document.getElementById('vecPickEnd');
+btnVecStart.onclick=()=>{ if (vecPickStart) { vecPickStart=false; vecPickEnd=true; } else { vecPickStart=true; vecPickEnd=false; } updateToolButtons(); };
+btnVecEnd.onclick=()=>{ if (vecPickEnd && vecStart && vecEnd) { addVectorArrow(vecStart, vecEnd); vecStart=vecEnd=null; markerLayer.clearTemps(); vecPickEnd=false; } else { vecPickEnd=true; vecPickStart=false; } updateToolButtons(); scheduleUpdateURL(); };
 document.getElementById('addVector').onclick=()=>{
   if (!vecStart || !vecEnd) return;
   addVectorArrow(vecStart, vecEnd);
-  vecStart=vecEnd=null; vecPickStart=vecPickEnd=false; scheduleUpdateURL();
+  vecStart=vecEnd=null; vecPickStart=vecPickEnd=false; markerLayer.clearTemps(); scheduleUpdateURL(); updateToolButtons();
 };
-document.getElementById('clearVectors').onclick=()=>{ vectorGroup.clear(); scheduleUpdateURL(); };
+document.getElementById('clearVectors').onclick=()=>{ vectorGroup.clear(); vectorItems=[]; scheduleUpdateURL(); };
 
 let uvPickStart=false, uvPickEnd=false, uvStart=null, uvEnd=null;
-document.getElementById('uvPickStart').onclick=()=>{ uvPickStart=true; uvPickEnd=false; };
-document.getElementById('uvPickEnd').onclick=()=>{ uvPickEnd=true; uvPickStart=false; };
+const btnUVStart = document.getElementById('uvPickStart');
+const btnUVEnd = document.getElementById('uvPickEnd');
+btnUVStart.onclick=()=>{ if (uvPickStart) { uvPickStart=false; uvPickEnd=true; } else { uvPickStart=true; uvPickEnd=false; } updateToolButtons(); };
+btnUVEnd.onclick=()=>{ if (uvPickEnd && uvStart && uvEnd) { addUVLinePath(uvStart, uvEnd); uvStart=uvEnd=null; markerLayer.clearTemps(); uvPickEnd=false; } else { uvPickEnd=true; uvPickStart=false; } updateToolButtons(); scheduleUpdateURL(); };
 document.getElementById('addUVPath').onclick=()=>{
   if (!uvStart || !uvEnd) return;
   addUVLinePath(uvStart, uvEnd);
-  uvStart=uvEnd=null; uvPickStart=uvPickEnd=false; scheduleUpdateURL();
+  uvStart=uvEnd=null; uvPickStart=uvPickEnd=false; markerLayer.clearTemps(); scheduleUpdateURL(); updateToolButtons();
 };
 document.getElementById('clearUVPaths').onclick=()=>{ uvPathGroup.clear(); uvItems = []; scheduleUpdateURL(); };
 
@@ -372,15 +376,17 @@ renderer.domElement.addEventListener('pointerup', (ev) => {
   if (vecPickStart || vecPickEnd) {
     const hitUV = hit.uv || new THREE.Vector2();
     const info = { uv: new THREE.Vector2(hitUV.x, hitUV.y), position: hit.point.clone() };
-    if (vecPickStart) { vecStart = info; vecPickStart = false; }
-    if (vecPickEnd) { vecEnd = info; vecPickEnd = false; }
+    if (vecPickStart) { vecStart = info; vecPickStart = false; markerLayer.clearTemps(); markerLayer.addTempLabel(info.position,'S'); vecPickEnd = true; }
+    else if (vecPickEnd) { vecEnd = info; }
+    updateToolButtons();
     return;
   }
   if (uvPickStart || uvPickEnd) {
     const hitUV = hit.uv || new THREE.Vector2();
     const info = { uv: new THREE.Vector2(hitUV.x, hitUV.y), position: hit.point.clone() };
-    if (uvPickStart) { uvStart = info; uvPickStart = false; }
-    if (uvPickEnd) { uvEnd = info; uvPickEnd = false; }
+    if (uvPickStart) { uvStart = info; uvPickStart = false; markerLayer.clearTemps(); markerLayer.addTempLabel(info.position,'S'); uvPickEnd = true; }
+    else if (uvPickEnd) { uvEnd = info; }
+    updateToolButtons();
     return;
   }
   if (markersEnable.checked) {
@@ -464,6 +470,12 @@ function exportOBJ(group) {
 }
 
 function clampInt(id, min, max) { const v = parseInt(document.getElementById(id).value, 10); return Math.max(min, Math.min(max, isNaN(v)?min:v)); }
+
+function updateToolButtons(){
+  const e = (id, on)=> { const el=document.getElementById(id); if (el) el.classList.toggle('active', !!on); };
+  e('vecPickStart', vecPickStart); e('vecPickEnd', vecPickEnd);
+  e('uvPickStart', uvPickStart); e('uvPickEnd', uvPickEnd);
+}
 
 // Initial UI setup
 document.getElementById('colorMode').value = 'gradient';
@@ -627,6 +639,10 @@ function addVectorArrow(startInfo, endInfo){
     cone.position.add(dir.clone().multiplyScalar(-headLen*0.5));
     vectorGroup.add(cone);
   }
+  // save for cfg
+  vectorItems.push({ sx: startInfo.position.x, sy: startInfo.position.y, sz: startInfo.position.z,
+                     ex: endInfo.position.x, ey: endInfo.position.y, ez: endInfo.position.z,
+                     color: '#' + color.getHexString(), width, style });
 }
 
 // Build a path that follows straight line in UV and maps to surface
@@ -650,6 +666,8 @@ function addUVLinePath(startInfo, endInfo){
   makeLineClippable(line.material, surfaceState.mesh);
   setLineClip(line.material, params.clip, params.scale);
   uvPathGroup.add(line);
+  uvItems.push({ su: startInfo.uv.x, sv: startInfo.uv.y, eu: endInfo.uv.x, ev: endInfo.uv.y,
+                 color: '#' + color.getHexString(), width, style });
 }
 
 function randomizeCurrentPreset() {
@@ -927,10 +945,17 @@ function applyConfig(diff) {
     vectorGroup.clear(); vectorItems = [];
     if (Array.isArray(diff.vectors.items)) {
       for (const it of diff.vectors.items) {
+        if (it.color) document.getElementById('vecColor').value = it.color;
+        if (it.width!=null) document.getElementById('vecWidth').value = it.width;
+        if (it.style) document.getElementById('vecStyle').value = it.style;
         const a = { position: new THREE.Vector3(it.sx, it.sy, it.sz), uv: new THREE.Vector2() };
         const b = { position: new THREE.Vector3(it.ex, it.ey, it.ez), uv: new THREE.Vector2() };
         addVectorArrow(a,b);
       }
+      // restore UI to cfg defaults
+      document.getElementById('vecColor').value = diff.vectors.color || document.getElementById('vecColor').value;
+      if (diff.vectors.width!=null) document.getElementById('vecWidth').value = diff.vectors.width;
+      if (diff.vectors.style) document.getElementById('vecStyle').value = diff.vectors.style;
     }
   }
   if (diff.uvpaths) {
@@ -940,10 +965,16 @@ function applyConfig(diff) {
     uvPathGroup.clear(); uvItems = [];
     if (Array.isArray(diff.uvpaths.items)) {
       for (const it of diff.uvpaths.items) {
+        if (it.color) document.getElementById('uvColor').value = it.color;
+        if (it.width!=null) document.getElementById('uvWidth').value = it.width;
+        if (it.style) document.getElementById('uvStyle').value = it.style;
         const a = { position: new THREE.Vector3(), uv: new THREE.Vector2(it.su, it.sv) };
         const b = { position: new THREE.Vector3(), uv: new THREE.Vector2(it.eu, it.ev) };
         addUVLinePath(a,b);
       }
+      document.getElementById('uvColor').value = diff.uvpaths.color || document.getElementById('uvColor').value;
+      if (diff.uvpaths.width!=null) document.getElementById('uvWidth').value = diff.uvpaths.width;
+      if (diff.uvpaths.style) document.getElementById('uvStyle').value = diff.uvpaths.style;
     }
   }
 }
