@@ -75,7 +75,6 @@ function regenerateSurface() {
 
 function rebuildGeodesics() {
   geodesicGroup.clear();
-  clipLinesGroup.clear();
   if (!document.getElementById('geoEnable').checked) return;
   const style = document.getElementById('geoStyle').value;
   const color = new THREE.Color(document.getElementById('geoColor').value);
