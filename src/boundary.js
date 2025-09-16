@@ -314,15 +314,15 @@ function rectPlanesBoundary(state, w, h){
       const C={ x:pos.getX(ic), y:pos.getY(ic), z:pos.getZ(ic) };
       const fA=side(A), fB=side(B), fC=side(C);
       const P=[[A,fA],[B,fB],[C,fC]]; const edges=[[0,1],[1,2],[2,0]]; const pts=[];
-      for (const [i,j] of edges){
-        const a=P[i][0], b=P[j][0]; const fa=P[i][1], fb=P[j][1];
-        if ((fa<=0 && fb>=0) || (fa>=0 && fb<=0)){
-          const d = fb-fa; const t = Math.abs(d)<eps ? 0 : (-fa/d);
-          const p={ x:a.x+(b.x-a.x)*t, y:a.y+(b.y-a.y)*t, z:a.z+(b.z-a.z)*t };
-          if (inRange(p)) pts.push(p);
-        }
+    for (const [i,j] of edges){
+      const a=P[i][0], b=P[j][0]; const fa=P[i][1], fb=P[j][1];
+      if ((fa<=0 && fb>=0) || (fa>=0 && fb<=0)){
+        const d = fb-fa; const t = Math.abs(d)<eps ? 0 : (-fa/d);
+        const p={ x:a.x+(b.x-a.x)*t, y:a.y+(b.y-a.y)*t, z:a.z+(b.z-a.z)*t };
+          if (inRange(p)) pts.push([p.x,p.y,p.z]);
       }
-      if (pts.length===2) segs.push([pts[0],[pts[1].x,pts[1].y,pts[1].z]]);
+    }
+      if (pts.length===2) segs.push([pts[0], pts[1]]);
     }
     const loops = joinSegments(segs);
     return loops.map(loop=>polylineToGeometry(loop));
@@ -354,10 +354,10 @@ function marchingGridBoundary(state, sdf){
       if (s10!==s11) crossings.push(cross(p10,p11,f10,f11)); // right
       if (s11!==s01) crossings.push(cross(p11,p01,f11,f01)); // top
       if (s01!==s00) crossings.push(cross(p01,p00,f01,f00)); // left
-      if (crossings.length===2){ segs.push([crossings[0],crossings[1]]); }
+      if (crossings.length===2){ segs.push([[crossings[0].x,crossings[0].y,crossings[0].z],[crossings[1].x,crossings[1].y,crossings[1].z]]); }
       else if (crossings.length===4){ // ambiguous: split into two pairs
-        segs.push([crossings[0],crossings[1]]);
-        segs.push([crossings[2],crossings[3]]);
+        segs.push([[crossings[0].x,crossings[0].y,crossings[0].z],[crossings[1].x,crossings[1].y,crossings[1].z]]);
+        segs.push([[crossings[2].x,crossings[2].y,crossings[2].z],[crossings[3].x,crossings[3].y,crossings[3].z]]);
       }
     }
   }
