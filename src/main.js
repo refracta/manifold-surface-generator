@@ -302,7 +302,9 @@ renderer.domElement.addEventListener('contextmenu', (ev) => {
   ev.preventDefault();
   const rect = renderer.domElement.getBoundingClientRect();
   const removed = markerLayer.removeNearestAt(ev.clientX - rect.left, ev.clientY - rect.top, 24);
-  if (removed) scheduleUpdateURL();
+  let any = removed;
+  if (!removed) { any = removeNearestVectorOrUV(ev.clientX - rect.left, ev.clientY - rect.top) || any; }
+  if (any) scheduleUpdateURL();
 });
 
 // Markers
@@ -477,6 +479,37 @@ function updateToolButtons(){
   e('uvPickStart', uvPickStart); e('uvPickEnd', uvPickEnd);
 }
 
+function removeNearestVectorOrUV(px, py){
+  const w = renderer.domElement.clientWidth, h = renderer.domElement.clientHeight;
+  const dist2 = (x,y,a,b,c,d)=>{ // point to segment distance squared
+    const vx=c-a, vy=d-b; const wx=x-a, wy=y-b; const c1=vx*wx+vy*wy; if (c1<=0) return (x-a)**2+(y-b)**2; const c2=vx*vx+vy*vy; if (c2<=c1) return (x-c)**2+(y-d)**2; const t=c1/c2; const qx=a+t*vx, qy=b+t*vy; return (x-qx)**2+(y-qy)**2; };
+  function screen(p){ const v=p.clone().project(camera); return {x:(v.x*0.5+0.5)*w, y:(-v.y*0.5+0.5)*h}; }
+  let best={type:null,idx:-1,d:1e12};
+  // vectors
+  vectorItems.forEach((it,idx)=>{
+    const a=screen(new THREE.Vector3(it.sx,it.sy,it.sz));
+    const b=screen(new THREE.Vector3(it.ex,it.ey,it.ez));
+    const d=dist2(px,py,a.x,a.y,b.x,b.y); if (d<best.d) best={type:'vec',idx,d};
+  });
+  // uv paths
+  uvItems.forEach((it,idx)=>{
+    const obj = it.obj; if (!obj) return; const pos = obj.geometry.getAttribute('position'); let dmin=1e12;
+    for (let i=0;i<pos.count-1;i++){
+      const p0=screen(new THREE.Vector3(pos.getX(i),pos.getY(i),pos.getZ(i)));
+      const p1=screen(new THREE.Vector3(pos.getX(i+1),pos.getY(i+1),pos.getZ(i+1)));
+      const d=dist2(px,py,p0.x,p0.y,p1.x,p1.y); if (d<dmin) dmin=d;
+    }
+    if (dmin<best.d) best={type:'uv',idx,d:dmin};
+  });
+  const thresh=12*12; if (best.d>thresh || best.idx<0) return false;
+  if (best.type==='vec') {
+    const it=vectorItems[best.idx]; if (it.obj) vectorGroup.remove(it.obj); if (it.cone) vectorGroup.remove(it.cone); vectorItems.splice(best.idx,1); return true;
+  } else if (best.type==='uv') {
+    const it=uvItems[best.idx]; if (it.obj) uvPathGroup.remove(it.obj); uvItems.splice(best.idx,1); return true;
+  }
+  return false;
+}
+
 // Initial UI setup
 document.getElementById('colorMode').value = 'gradient';
 document.getElementById('solidRow').style.display = 'none';
@@ -642,7 +675,7 @@ function addVectorArrow(startInfo, endInfo){
   // save for cfg
   vectorItems.push({ sx: startInfo.position.x, sy: startInfo.position.y, sz: startInfo.position.z,
                      ex: endInfo.position.x, ey: endInfo.position.y, ez: endInfo.position.z,
-                     color: '#' + color.getHexString(), width, style });
+                     color: '#' + color.getHexString(), width, style, obj: line, cone });
 }
 
 // Build a path that follows straight line in UV and maps to surface
@@ -667,7 +700,7 @@ function addUVLinePath(startInfo, endInfo){
   setLineClip(line.material, params.clip, params.scale);
   uvPathGroup.add(line);
   uvItems.push({ su: startInfo.uv.x, sv: startInfo.uv.y, eu: endInfo.uv.x, ev: endInfo.uv.y,
-                 color: '#' + color.getHexString(), width, style });
+                 color: '#' + color.getHexString(), width, style, obj: line });
 }
 
 function randomizeCurrentPreset() {
@@ -780,13 +813,13 @@ function snapshotConfig() {
       color: document.getElementById('vecColor').value,
       width: parseFloat(document.getElementById('vecWidth').value),
       style: document.getElementById('vecStyle').value,
-      items: vectorItems
+      items: vectorItems.map(it=>({ sx:it.sx,sy:it.sy,sz:it.sz, ex:it.ex,ey:it.ey,ez:it.ez, color:it.color, width:it.width, style:it.style }))
     }
     ,uvpaths: {
       color: document.getElementById('uvColor').value,
       width: parseFloat(document.getElementById('uvWidth').value),
       style: document.getElementById('uvStyle').value,
-      items: uvItems
+      items: uvItems.map(it=>({ su:it.su,sv:it.sv, eu:it.eu,ev:it.ev, color:it.color, width:it.width, style:it.style }))
     }
   };
   // preset specific values
