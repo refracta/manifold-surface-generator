@@ -4,20 +4,23 @@ import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
 // Returns an array of BufferGeometries (polyline paths in local space of the mesh).
 export function buildClipBoundary(state, clip) {
   if (!clip || clip.mode === 'none') return [];
-  const pos = state.geometry.attributes.position;
-  const idx = state.geometry.index;
   const scale = state.params.scale || 1;
   const w = ((clip.rectW ?? 1) * 0.5) * scale;
   const h = ((clip.rectH ?? 1) * 0.5) * scale;
   const r = (clip.radius ?? 1) * scale;
-
-  function sdfRect(x, z) { return Math.max(Math.abs(x) - w, Math.abs(z) - h); }
-  function sdfCircle(x, z) { return Math.hypot(x, z) - r; }
   if (clip.mode === 'rect') {
-    return [buildRectBoundaryGrid(state, w, h)];
+    const rectGeo = buildRectBoundaryGrid(state, w, h);
+    const pos = rectGeo.getAttribute('position');
+    if (pos && pos.count >= 4) return [rectGeo];
+    // fallback to triangulation if grid crossing failed
+    return triangulatedBoundary(state, (x,z)=>Math.max(Math.abs(x)-w, Math.abs(z)-h));
   }
-  const sdf = sdfCircle;
+  return triangulatedBoundary(state, (x,z)=>Math.hypot(x,z)-r);
+}
 
+function triangulatedBoundary(state, sdf){
+  const pos = state.geometry.attributes.position;
+  const idx = state.geometry.index;
   const segs = [];
   const aCount = idx ? idx.count : (pos.count);
   const getIndex = (i) => idx ? idx.getX(i) : i;
@@ -37,7 +40,7 @@ export function buildClipBoundary(state, clip) {
       const fa1 = a[3], fb1 = b[3];
       if ((fa1>0 && fb1>0) || (fa1<0 && fb1<0)) continue;
       const denom = (fa1 - fb1);
-      if (Math.abs(denom) < 1e-8) continue;
+      if (Math.abs(denom) < 1e-10) continue;
       const t1 = fa1 / denom; // where F crosses 0
       if (t1 < -1e-6 || t1 > 1+1e-6) continue;
       const x = a[0] + (b[0]-a[0])*t1;
@@ -47,7 +50,6 @@ export function buildClipBoundary(state, clip) {
     }
     if (pts.length === 2) segs.push(pts);
   }
-
   const loops = joinSegments(segs);
   return loops.map(loop => polylineToGeometry(loop));
 }
