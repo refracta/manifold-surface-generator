@@ -8,14 +8,13 @@ export function buildClipBoundary(state, clip) {
   const w = ((clip.rectW ?? 1) * 0.5) * scale;
   const h = ((clip.rectH ?? 1) * 0.5) * scale;
   const r = (clip.radius ?? 1) * scale;
-  if (clip.mode === 'rect') {
-    const rectGeo = buildRectBoundaryGrid(state, w, h);
-    const pos = rectGeo.getAttribute('position');
-    if (pos && pos.count >= 4) return [rectGeo];
-    // fallback to triangulation if grid crossing failed
-    return triangulatedBoundary(state, (x,z)=>Math.max(Math.abs(x)-w, Math.abs(z)-h));
-  }
-  return triangulatedBoundary(state, (x,z)=>Math.hypot(x,z)-r);
+  const sdf = (clip.mode === 'rect')
+    ? (x,z)=>Math.max(Math.abs(x)-w, Math.abs(z)-h)
+    : (x,z)=>Math.hypot(x,z)-r;
+  const geos = marchingGridBoundary(state, sdf);
+  if (geos.length) return geos;
+  // fallback
+  return triangulatedBoundary(state, sdf);
 }
 
 function triangulatedBoundary(state, sdf){
@@ -287,4 +286,33 @@ function polylineToGeometry(loop) {
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(arr,3));
   return geo;
+}
+
+// Marching-squares on UV grid using SDF(x,z) to build boundary
+function marchingGridBoundary(state, sdf){
+  const { resU, resV } = state; const pos = state.geometry.attributes.position;
+  const P = (i,j)=>({ x: pos.getX(j*(resU+1)+i), y: pos.getY(j*(resU+1)+i), z: pos.getZ(j*(resU+1)+i) });
+  const F = (p)=>sdf(p.x,p.z);
+  const segs=[]; const eps=1e-12;
+  function lerp(a,b,t){ return { x:a.x+(b.x-a.x)*t, y:a.y+(b.y-a.y)*t, z:a.z+(b.z-a.z)*t } }
+  function cross(a,b,fa,fb){ const d=fb-fa; const t = Math.abs(d)<eps?0: (-fa/d); return lerp(a,b,t); }
+  for (let j=0;j<resV;j++){
+    for (let i=0;i<resU;i++){
+      const p00=P(i,j), p10=P(i+1,j), p11=P(i+1,j+1), p01=P(i,j+1);
+      const f00=F(p00), f10=F(p10), f11=F(p11), f01=F(p01);
+      const s00=f00<=0, s10=f10<=0, s11=f11<=0, s01=f01<=0;
+      const crossings=[];
+      if (s00!==s10) crossings.push(cross(p00,p10,f00,f10)); // bottom
+      if (s10!==s11) crossings.push(cross(p10,p11,f10,f11)); // right
+      if (s11!==s01) crossings.push(cross(p11,p01,f11,f01)); // top
+      if (s01!==s00) crossings.push(cross(p01,p00,f01,f00)); // left
+      if (crossings.length===2){ segs.push([crossings[0],crossings[1]]); }
+      else if (crossings.length===4){ // ambiguous: split into two pairs
+        segs.push([crossings[0],crossings[1]]);
+        segs.push([crossings[2],crossings[3]]);
+      }
+    }
+  }
+  const loops = joinSegments(segs);
+  return loops.map(loop=>polylineToGeometry(loop));
 }
