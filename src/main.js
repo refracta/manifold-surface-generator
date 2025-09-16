@@ -6,7 +6,7 @@ import { Line2 } from 'https://unpkg.com/three@0.160.0/examples/jsm/lines/Line2.
 import { LineMaterial } from 'https://unpkg.com/three@0.160.0/examples/jsm/lines/LineMaterial.js';
 import { LineGeometry } from 'https://unpkg.com/three@0.160.0/examples/jsm/lines/LineGeometry.js';
 
-import { buildSurface, colorizeGeometry, SurfacePresets, createSurfaceParams, setClip, makeLineClippable, setLineClip } from './surface.js';
+import { buildSurface, colorizeGeometry, SurfacePresets, createSurfaceParams, setClip, makeLineClippable, setLineClip, sampleSurfaceAtUV } from './surface.js';
 import { buildIsoGrid, buildEdgeShortestPath, buildParamStraight } from './geodesic.js';
 import { buildClipBoundary, buildDomainBoundary, clipPolylineToMask, estimateParamSpans } from './boundary.js';
 import { MarkerLayer } from './markers.js';
@@ -377,7 +377,7 @@ renderer.domElement.addEventListener('pointerup', (ev) => {
     const hitUV = hit.uv || new THREE.Vector2();
     const info = { uv: new THREE.Vector2(hitUV.x, hitUV.y), position: hit.point.clone() };
     if (vecPickStart) { vecStart = info; vecPickStart = false; markerLayer.clearTemps(); markerLayer.addTempLabel(info.position,'S'); vecPickEnd = true; }
-    else if (vecPickEnd) { vecEnd = info; }
+    else if (vecPickEnd) { vecEnd = info; addVectorArrow(vecStart, vecEnd); vecStart=vecEnd=null; vecPickEnd=false; markerLayer.clearTemps(); scheduleUpdateURL(); }
     updateToolButtons();
     return;
   }
@@ -385,7 +385,7 @@ renderer.domElement.addEventListener('pointerup', (ev) => {
     const hitUV = hit.uv || new THREE.Vector2();
     const info = { uv: new THREE.Vector2(hitUV.x, hitUV.y), position: hit.point.clone() };
     if (uvPickStart) { uvStart = info; uvPickStart = false; markerLayer.clearTemps(); markerLayer.addTempLabel(info.position,'S'); uvPickEnd = true; }
-    else if (uvPickEnd) { uvEnd = info; }
+    else if (uvPickEnd) { uvEnd = info; addUVLinePath(uvStart, uvEnd); uvStart=uvEnd=null; uvPickEnd=false; markerLayer.clearTemps(); scheduleUpdateURL(); }
     updateToolButtons();
     return;
   }
