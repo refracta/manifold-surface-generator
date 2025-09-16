@@ -633,16 +633,21 @@ function applyMaterialSettings() {
   if (unlit) {
     if (!(prev && prev.isMeshBasicMaterial)) {
       const mat = new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide, transparent: op < 1, opacity: op });
+      // ensure clipping works on unlit as well
+      makeClippable(mat);
       surfaceState.mesh.material = mat;
     } else { prev.opacity = op; prev.transparent = op < 1; }
   } else {
     if (!(prev && prev.isMeshStandardMaterial)) {
       const mat = new THREE.MeshStandardMaterial({ vertexColors: true, metalness: 0.0, roughness: 0.6, side: THREE.DoubleSide, transparent: op < 1, opacity: op });
+      makeClippable(mat);
       surfaceState.mesh.material = mat;
     } else { prev.opacity = op; prev.transparent = op < 1; }
     surfaceState.mesh.material.emissive = new THREE.Color(0xffffff);
     surfaceState.mesh.material.emissiveIntensity = emiss;
   }
+  // reapply current clip on new material
+  setClip(surfaceState.mesh.material, params.clip, params.scale);
 }
 
 // Build a vector arrow between two picked points (straight segment + cone head)
