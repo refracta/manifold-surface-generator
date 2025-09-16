@@ -754,8 +754,8 @@ function rebuildBoundaryLines() {
     boundaryGeos = buildDomainBoundary(surfaceState);
   }
   for (const g of boundaryGeos) {
-    // Draw boundary as overlay to avoid z-fighting holes on solid style
-    const line = toLine2(g, { style, color, alpha, width, depthTest: false, dash, gap, depthWrite: false, zOffset: 0 });
+    // Occluding outline: depthTest on, slight positive polygonOffset to reduce z-fighting
+    const line = toLine2(g, { style, color, alpha, width, depthTest: true, dash, gap, depthWrite: false, zOffset: 1 });
     clipLinesGroup.add(line);
   }
 }
