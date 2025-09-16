@@ -876,7 +876,12 @@ function scheduleUpdateURL(){ if (urlTimer) clearTimeout(urlTimer); urlTimer=set
 function applyConfigFromURL() {
   const sp = new URLSearchParams(window.location.search);
   const raw = sp.get('cfg'); if (!raw) return;
-  try { const diff = JSON.parse(decodeURIComponent(raw)); applyConfig(diff); } catch(e) { console.warn('Invalid cfg param', e); }
+  let s = raw; let diff = null;
+  for (let i=0;i<3;i++) {
+    try { diff = JSON.parse(s); break; } catch(e) { try { s = decodeURIComponent(s); } catch { break; } }
+  }
+  if (!diff) { console.warn('Invalid cfg param'); return; }
+  applyConfig(diff);
 }
 
 function applyConfig(diff) {
@@ -903,8 +908,11 @@ function applyConfig(diff) {
   if (diff.mask) {
     const m = diff.mask;
     if (m.mode) document.getElementById('clipMode').value = m.mode;
-    if (m.rectW!=null) document.getElementById('clipRectW').value = m.rectW;
-    if (m.rectH!=null) document.getElementById('clipRectH').value = m.rectH;
+    // backward-compat: width/height or w/h map to rectW/rectH
+    const rectW = (m.rectW!=null) ? m.rectW : (m.width!=null ? m.width : (m.w!=null ? m.w : undefined));
+    const rectH = (m.rectH!=null) ? m.rectH : (m.height!=null ? m.height : (m.h!=null ? m.h : undefined));
+    if (rectW!=null) document.getElementById('clipRectW').value = rectW;
+    if (rectH!=null) document.getElementById('clipRectH').value = rectH;
     if (m.radius!=null) document.getElementById('clipRadius').value = m.radius;
     if (m.show!=null) document.getElementById('clipLinesEnable').checked = !!m.show;
     if (m.width!=null) document.getElementById('clipWidth').value = m.width;
