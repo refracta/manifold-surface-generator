@@ -56,6 +56,49 @@ function triangulatedBoundary(state, sdf){
   return loops.map(loop => polylineToGeometry(loop));
 }
 
+// Super-sampled marching-squares in UV domain; factor>1 increases samples per cell
+export function buildClipBoundarySuper(state, clip, factor=1){
+  if (!clip || clip.mode==='none') return [];
+  const scale = state.params.scale || 1;
+  const w = ((clip.rectW ?? 1) * 0.5) * scale;
+  const h = ((clip.rectH ?? 1) * 0.5) * scale;
+  const r = (clip.radius ?? 1) * scale;
+  const sdf = (clip.mode==='rect') ? (x,z)=>Math.max(Math.abs(x)-w, Math.abs(z)-h) : (x,z)=>Math.hypot(x,z)-r;
+  factor = Math.max(1, Math.floor(factor));
+
+  const { resU, resV } = state; const U = resU*factor, V = resV*factor;
+  const posAttr = state.geometry.attributes.position;
+  function sampleAtUV(u,v){
+    const i = u*resU, j = v*resV; const i0=Math.floor(i), j0=Math.floor(j); const i1=Math.min(resU,i0+1), j1=Math.min(resV,j0+1);
+    const fu = i - i0, fv = j - j0; const idx=(ii,jj)=> jj*(resU+1)+ii;
+    const p00={x:posAttr.getX(idx(i0,j0)), y:posAttr.getY(idx(i0,j0)), z:posAttr.getZ(idx(i0,j0))};
+    const p10={x:posAttr.getX(idx(i1,j0)), y:posAttr.getY(idx(i1,j0)), z:posAttr.getZ(idx(i1,j0))};
+    const p01={x:posAttr.getX(idx(i0,j1)), y:posAttr.getY(idx(i0,j1)), z:posAttr.getZ(idx(i0,j1))};
+    const p11={x:posAttr.getX(idx(i1,j1)), y:posAttr.getY(idx(i1,j1)), z:posAttr.getZ(idx(i1,j1))};
+    const a={x:p00.x+(p10.x-p00.x)*fu, y:p00.y+(p10.y-p00.y)*fu, z:p00.z+(p10.z-p00.z)*fu};
+    const b={x:p01.x+(p11.x-p01.x)*fu, y:p01.y+(p11.y-p01.y)*fu, z:p01.z+(p11.z-p01.z)*fu};
+    return { x:a.x+(b.x-a.x)*fv, y:a.y+(b.y-a.y)*fv, z:a.z+(b.z-a.z)*fv };
+  }
+  const segs=[]; const eps=1e-12;
+  function cross(a,b,fa,fb){ const d=fb-fa; const t = Math.abs(d)<eps?0:(-fa/d); return { x:a.x+(b.x-a.x)*t, y:a.y+(b.y-a.y)*t, z:a.z+(b.z-a.z)*t } }
+  for (let j=0;j<V;j++){
+    for (let i=0;i<U;i++){
+      const u0=i/U, v0=j/V, u1=(i+1)/U, v1=(j+1)/V;
+      const p00=sampleAtUV(u0,v0), p10=sampleAtUV(u1,v0), p11=sampleAtUV(u1,v1), p01=sampleAtUV(u0,v1);
+      const f00=sdf(p00.x,p00.z), f10=sdf(p10.x,p10.z), f11=sdf(p11.x,p11.z), f01=sdf(p01.x,p01.z);
+      const s00=f00<=0, s10=f10<=0, s11=f11<=0, s01=f01<=0; const crossings=[];
+      if (s00!==s10) crossings.push(cross(p00,p10,f00,f10));
+      if (s10!==s11) crossings.push(cross(p10,p11,f10,f11));
+      if (s11!==s01) crossings.push(cross(p11,p01,f11,f01));
+      if (s01!==s00) crossings.push(cross(p01,p00,f01,f00));
+      if (crossings.length===2){ segs.push([[crossings[0].x,crossings[0].y,crossings[0].z],[crossings[1].x,crossings[1].y,crossings[1].z]]); }
+      else if (crossings.length===4){ segs.push([[crossings[0].x,crossings[0].y,crossings[0].z],[crossings[1].x,crossings[1].y,crossings[1].z]]); segs.push([[crossings[2].x,crossings[2].y,crossings[2].z],[crossings[3].x,crossings[3].y,crossings[3].z]]); }
+    }
+  }
+  const loops = joinSegments(segs);
+  return loops.map(loop=>polylineToGeometry(loop));
+}
+
 // Robust rectangular boundary using grid crossings (avoids corner gaps)
 function buildRectBoundaryGrid(state, w, h) {
   const { resU, resV } = state;

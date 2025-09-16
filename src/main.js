@@ -8,7 +8,7 @@ import { LineGeometry } from 'https://unpkg.com/three@0.160.0/examples/jsm/lines
 
 import { buildSurface, colorizeGeometry, SurfacePresets, createSurfaceParams, setClip, makeLineClippable, setLineClip, sampleSurfaceAtUV } from './surface.js';
 import { buildIsoGrid, buildEdgeShortestPath, buildParamStraight } from './geodesic.js';
-import { buildClipBoundary, buildDomainBoundary, clipPolylineToMask, estimateParamSpans } from './boundary.js';
+import { buildClipBoundary, buildDomainBoundary, clipPolylineToMask, estimateParamSpans, buildClipBoundarySuper } from './boundary.js';
 import { MarkerLayer } from './markers.js';
 
 const container = document.getElementById('canvas-container');
@@ -748,7 +748,8 @@ function rebuildBoundaryLines() {
 
   let boundaryGeos;
   if (params.clip && params.clip.mode !== 'none') {
-    boundaryGeos = buildClipBoundary(surfaceState, params.clip);
+    const factor = parseInt(document.getElementById('outlineFactor')?.value||'2',10);
+    boundaryGeos = (buildClipBoundarySuper?.(surfaceState, params.clip, factor)) || buildClipBoundary(surfaceState, params.clip);
   } else {
     boundaryGeos = buildDomainBoundary(surfaceState);
   }
