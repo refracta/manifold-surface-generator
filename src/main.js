@@ -79,8 +79,8 @@ function rebuildGeodesics() {
   const color = new THREE.Color(document.getElementById('geoColor').value);
   const alpha = parseFloat(document.getElementById('geoAlpha').value);
   const width = parseFloat(document.getElementById('geoWidth').value);
-  const dash = parseFloat(document.getElementById('geoDash')?.value || '0.14');
-  const gap = parseFloat(document.getElementById('geoGap')?.value || '0.06');
+  const dash = parseFloat(document.getElementById('vecDash')?.value || '0.14');
+  const gap = parseFloat(document.getElementById('vecGap')?.value || '0.06');
   const count = parseInt(document.getElementById('geoCount').value, 10);
   const method = document.getElementById('geoMethod').value;
 
@@ -256,8 +256,8 @@ document.getElementById('addPath').onclick = () => {
   const color = new THREE.Color(document.getElementById('geoColor').value);
   const alpha = parseFloat(document.getElementById('geoAlpha').value);
   const width = parseFloat(document.getElementById('geoWidth').value);
-  const dash = parseFloat(document.getElementById('geoDash')?.value || '0.14');
-  const gap = parseFloat(document.getElementById('geoGap')?.value || '0.06');
+  const dash = parseFloat(document.getElementById('uvDash')?.value || '0.14');
+  const gap = parseFloat(document.getElementById('uvGap')?.value || '0.06');
   let segments = [geo];
   if (params.clip && params.clip.mode !== 'none') {
     const pos = geo.getAttribute('position').array;
@@ -824,12 +824,16 @@ function snapshotConfig() {
       color: document.getElementById('vecColor').value,
       width: parseFloat(document.getElementById('vecWidth').value),
       style: document.getElementById('vecStyle').value,
+      dash: parseFloat(document.getElementById('vecDash')?.value || '0.14'),
+      gap: parseFloat(document.getElementById('vecGap')?.value || '0.06'),
       items: vectorItems.map(it=>({ sx:it.sx,sy:it.sy,sz:it.sz, ex:it.ex,ey:it.ey,ez:it.ez, color:it.color, width:it.width, style:it.style }))
     }
     ,uvpaths: {
       color: document.getElementById('uvColor').value,
       width: parseFloat(document.getElementById('uvWidth').value),
       style: document.getElementById('uvStyle').value,
+      dash: parseFloat(document.getElementById('uvDash')?.value || '0.14'),
+      gap: parseFloat(document.getElementById('uvGap')?.value || '0.06'),
       items: uvItems.map(it=>({ su:it.su,sv:it.sv, eu:it.eu,ev:it.ev, color:it.color, width:it.width, style:it.style }))
     }
   };
@@ -986,6 +990,8 @@ function applyConfig(diff) {
     document.getElementById('vecColor').value = diff.vectors.color || '#000000';
     if (diff.vectors.width!=null) document.getElementById('vecWidth').value = diff.vectors.width;
     if (diff.vectors.style) document.getElementById('vecStyle').value = diff.vectors.style;
+    if (diff.vectors.dash!=null) document.getElementById('vecDash').value = diff.vectors.dash;
+    if (diff.vectors.gap!=null) document.getElementById('vecGap').value = diff.vectors.gap;
     vectorGroup.clear(); vectorItems = [];
     if (Array.isArray(diff.vectors.items)) {
       for (const it of diff.vectors.items) {
@@ -1006,6 +1012,8 @@ function applyConfig(diff) {
     document.getElementById('uvColor').value = diff.uvpaths.color || '#000000';
     if (diff.uvpaths.width!=null) document.getElementById('uvWidth').value = diff.uvpaths.width;
     if (diff.uvpaths.style) document.getElementById('uvStyle').value = diff.uvpaths.style;
+    if (diff.uvpaths.dash!=null) document.getElementById('uvDash').value = diff.uvpaths.dash;
+    if (diff.uvpaths.gap!=null) document.getElementById('uvGap').value = diff.uvpaths.gap;
     uvPathGroup.clear(); uvItems = [];
     if (Array.isArray(diff.uvpaths.items)) {
       for (const it of diff.uvpaths.items) {
