@@ -918,7 +918,10 @@ function applyConfig(diff) {
     if (m.radius!=null) document.getElementById('clipRadius').value = m.radius;
     if (m.show!=null) document.getElementById('clipLinesEnable').checked = !!m.show;
     if (m.width!=null) document.getElementById('clipWidth').value = m.width;
-    if (m.style) document.getElementById('clipStyle').value = m.style;
+    if (m.style) {
+      const val = (m.style === 'solid') ? 'solid' : 'pattern';
+      document.getElementById('clipStyle').value = val;
+    }
     if (m.dash!=null) { const e=document.getElementById('clipDash'); if(e) e.value=m.dash; }
     if (m.gap!=null) { const e=document.getElementById('clipGap'); if(e) e.value=m.gap; }
     if (m.color) document.getElementById('clipColor').value = m.color;
@@ -948,7 +951,7 @@ function applyConfig(diff) {
     if (g.method) document.getElementById('geoMethod').value = g.method;
     if (g.count!=null) document.getElementById('geoCount').value = g.count;
     if (g.width!=null) document.getElementById('geoWidth').value = g.width;
-    if (g.style) document.getElementById('geoStyle').value = g.style;
+    if (g.style) document.getElementById('geoStyle').value = (g.style==='solid'?'solid':'pattern');
     if (g.dash!=null) { const e=document.getElementById('geoDash'); if(e) e.value=g.dash; }
     if (g.gap!=null) { const e=document.getElementById('geoGap'); if(e) e.value=g.gap; }
     if (g.color) document.getElementById('geoColor').value = g.color;
@@ -997,7 +1000,7 @@ function applyConfig(diff) {
   if (diff.vectors) {
     document.getElementById('vecColor').value = diff.vectors.color || '#000000';
     if (diff.vectors.width!=null) document.getElementById('vecWidth').value = diff.vectors.width;
-    if (diff.vectors.style) document.getElementById('vecStyle').value = diff.vectors.style;
+    if (diff.vectors.style) document.getElementById('vecStyle').value = (diff.vectors.style==='solid'?'solid':'pattern');
     if (diff.vectors.dash!=null) document.getElementById('vecDash').value = diff.vectors.dash;
     if (diff.vectors.gap!=null) document.getElementById('vecGap').value = diff.vectors.gap;
     vectorGroup.clear(); vectorItems = [];
@@ -1019,7 +1022,7 @@ function applyConfig(diff) {
   if (diff.uvpaths) {
     document.getElementById('uvColor').value = diff.uvpaths.color || '#000000';
     if (diff.uvpaths.width!=null) document.getElementById('uvWidth').value = diff.uvpaths.width;
-    if (diff.uvpaths.style) document.getElementById('uvStyle').value = diff.uvpaths.style;
+    if (diff.uvpaths.style) document.getElementById('uvStyle').value = (diff.uvpaths.style==='solid'?'solid':'pattern');
     if (diff.uvpaths.dash!=null) document.getElementById('uvDash').value = diff.uvpaths.dash;
     if (diff.uvpaths.gap!=null) document.getElementById('uvGap').value = diff.uvpaths.gap;
     uvPathGroup.clear(); uvItems = [];
