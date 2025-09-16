@@ -13,7 +13,10 @@ export function buildClipBoundary(state, clip) {
 
   function sdfRect(x, z) { return Math.max(Math.abs(x) - w, Math.abs(z) - h); }
   function sdfCircle(x, z) { return Math.hypot(x, z) - r; }
-  const sdf = clip.mode === 'rect' ? sdfRect : sdfCircle;
+  if (clip.mode === 'rect') {
+    return [buildRectBoundaryGrid(state, w, h)];
+  }
+  const sdf = sdfCircle;
 
   const segs = [];
   const aCount = idx ? idx.count : (pos.count);
@@ -47,6 +50,57 @@ export function buildClipBoundary(state, clip) {
 
   const loops = joinSegments(segs);
   return loops.map(loop => polylineToGeometry(loop));
+}
+
+// Robust rectangular boundary using grid crossings (avoids corner gaps)
+function buildRectBoundaryGrid(state, w, h) {
+  const { resU, resV } = state;
+  const pos = state.geometry.attributes.position;
+  const get = (i,j)=>{
+    const idx = j*(resU+1)+i; return { x: pos.getX(idx), y: pos.getY(idx), z: pos.getZ(idx) };
+  };
+  const eps = 1e-6, epsInside = 1e-3;
+  function interp(a,b,t){ return { x:a.x+(b.x-a.x)*t, y:a.y+(b.y-a.y)*t, z:a.z+(b.z-a.z)*t }; }
+
+  // helper: crossing along row j for plane x = target, only if |z|<=h
+  function crossRowX(j, target){
+    let last = get(0,j); let lastv = last.x - target;
+    for (let i=1;i<=resU;i++){
+      const cur = get(i,j); const curv = cur.x - target;
+      if ((lastv<=0 && curv>=0) || (lastv>=0 && curv<=0)){
+        const denom = (curv - lastv);
+        const t = Math.abs(denom) < eps ? 0 : (-lastv / denom);
+        const p = interp(last, cur, t);
+        if (Math.abs(p.z) <= h + epsInside) return p;
+      }
+      last = cur; lastv = curv;
+    }
+    return null;
+  }
+  // helper: crossing along column i for plane z = target, only if |x|<=w
+  function crossColZ(i, target){
+    let last = get(i,0); let lastv = last.z - target;
+    for (let j=1;j<=resV;j++){
+      const cur = get(i,j); const curv = cur.z - target;
+      if ((lastv<=0 && curv>=0) || (lastv>=0 && curv<=0)){
+        const denom = (curv - lastv);
+        const t = Math.abs(denom) < eps ? 0 : (-lastv / denom);
+        const p = interp(last, cur, t);
+        if (Math.abs(p.x) <= w + epsInside) return p;
+      }
+      last = cur; lastv = curv;
+    }
+    return null;
+  }
+
+  const bottom=[], right=[], top=[], left=[];
+  for (let i=0;i<=resU;i++){ const p=crossColZ(i,-h); if (p) bottom.push(p); }
+  for (let j=0;j<=resV;j++){ const p=crossRowX(j, +w); if (p) right.push(p); }
+  for (let i=resU;i>=0;i--){ const p=crossColZ(i,+h); if (p) top.push(p); }
+  for (let j=resV;j>=0;j--){ const p=crossRowX(j, -w); if (p) left.push(p); }
+
+  const loop=[...bottom, ...right, ...top, ...left];
+  return polylineToGeometry(loop);
 }
 
 // Domain boundary (UV rectangle) mapped into 3D by existing vertices along the mesh outer ring
