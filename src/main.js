@@ -81,8 +81,8 @@ function rebuildGeodesics() {
   const color = new THREE.Color(document.getElementById('geoColor').value);
   const alpha = parseFloat(document.getElementById('geoAlpha').value);
   const width = parseFloat(document.getElementById('geoWidth').value);
-  const dash = parseFloat(document.getElementById('vecDash')?.value || '0.14');
-  const gap = parseFloat(document.getElementById('vecGap')?.value || '0.06');
+  const dash = parseFloat(document.getElementById('geoDash')?.value || '0.14');
+  const gap = parseFloat(document.getElementById('geoGap')?.value || '0.06');
   const count = parseInt(document.getElementById('geoCount').value, 10);
   const method = document.getElementById('geoMethod').value;
 
