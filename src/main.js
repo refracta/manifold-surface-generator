@@ -241,7 +241,7 @@ document.getElementById('geoAlpha').addEventListener('input', rebuildGeodesics);
 document.getElementById('geoDash')?.addEventListener('input', rebuildGeodesics);
 document.getElementById('geoGap')?.addEventListener('input', rebuildGeodesics);
 
-['clipLinesEnable','clipWidth','clipStyle','clipColor','clipAlpha'].forEach(id => {
+['clipLinesEnable','clipWidth','clipStyle','clipColor','clipAlpha','outlineFactor'].forEach(id => {
   const el = document.getElementById(id); if (el) el.addEventListener('input', rebuildBoundaryLines);
 });
 document.getElementById('clipDash')?.addEventListener('input', rebuildBoundaryLines);
@@ -776,7 +776,8 @@ function snapshotConfig() {
       dash: parseFloat(document.getElementById('clipDash')?.value || '0.14'),
       gap: parseFloat(document.getElementById('clipGap')?.value || '0.06'),
       color: document.getElementById('clipColor').value,
-      alpha: parseFloat(document.getElementById('clipAlpha').value)
+      alpha: parseFloat(document.getElementById('clipAlpha').value),
+      outlineSamp: parseInt(document.getElementById('outlineFactor')?.value||'2',10)
     },
     colors: {
       bg: document.getElementById('bgColor').value,
@@ -922,6 +923,7 @@ function applyConfig(diff) {
     if (m.gap!=null) { const e=document.getElementById('clipGap'); if(e) e.value=m.gap; }
     if (m.color) document.getElementById('clipColor').value = m.color;
     if (m.alpha!=null) document.getElementById('clipAlpha').value = m.alpha;
+    if (m.outlineSamp!=null) { const e=document.getElementById('outlineFactor'); if (e) e.value = m.outlineSamp; }
   }
   // Colors
   if (diff.colors) {
