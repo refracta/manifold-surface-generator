@@ -655,8 +655,8 @@ function addVectorArrow(startInfo, endInfo){
   const color = new THREE.Color(document.getElementById('vecColor').value);
   const width = parseFloat(document.getElementById('vecWidth').value);
   const style = document.getElementById('vecStyle').value;
-  const dash = parseFloat(document.getElementById('geoDash')?.value || '0.14');
-  const gap = parseFloat(document.getElementById('geoGap')?.value || '0.06');
+  const dash = parseFloat(document.getElementById('vecDash')?.value || '0.14');
+  const gap = parseFloat(document.getElementById('vecGap')?.value || '0.06');
   const positions = new Float32Array([
     startInfo.position.x, startInfo.position.y, startInfo.position.z,
     endInfo.position.x, endInfo.position.y, endInfo.position.z,
@@ -666,13 +666,14 @@ function addVectorArrow(startInfo, endInfo){
   vectorGroup.add(line);
   // Arrow head
   const dir = new THREE.Vector3().subVectors(endInfo.position, startInfo.position);
+  let cone = null;
   const len = dir.length(); if (len > 1e-6){
     dir.normalize();
     const headLen = Math.max(0.02, 0.06 * len);
     const headRad = Math.max(0.01, 0.02 * len);
     const coneGeo = new THREE.ConeGeometry(headRad, headLen, 12);
     const coneMat = new THREE.MeshStandardMaterial({ color: color.getHex(), emissive: 0x000000, roughness: 0.5, metalness: 0.0 });
-    const cone = new THREE.Mesh(coneGeo, coneMat);
+    cone = new THREE.Mesh(coneGeo, coneMat);
     cone.position.copy(endInfo.position);
     cone.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), dir.clone().normalize());
     cone.position.add(dir.clone().multiplyScalar(-headLen*0.5));
