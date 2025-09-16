@@ -30,9 +30,11 @@ const defaultCamPos = camera.position.clone();
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 // Save camera state on orbit changes (during and after)
-controls.addEventListener('change', () => scheduleUpdateURL());
-controls.addEventListener('end', () => scheduleUpdateURL());
-renderer.domElement.addEventListener('wheel', () => scheduleUpdateURL(), { passive: true });
+let urlTimer = null; // declare early to avoid TDZ in scheduleUpdateURL
+const __safeSchedule = () => { if (urlTimer===null) { setTimeout(()=>updateURLFromState?.(), 0); } else scheduleUpdateURL(); };
+controls.addEventListener('change', __safeSchedule);
+controls.addEventListener('end', __safeSchedule);
+renderer.domElement.addEventListener('wheel', __safeSchedule, { passive: true });
 
 // Lights
 const amb = new THREE.AmbientLight(0xffffff, 0.6);
@@ -277,25 +279,15 @@ document.getElementById('clearGeodesics').onclick = () => { geodesicGroup.clear(
 let vecPickStart=false, vecPickEnd=false, vecStart=null, vecEnd=null;
 const btnVecStart = document.getElementById('vecPickStart');
 const btnVecEnd = document.getElementById('vecPickEnd');
-btnVecStart.onclick=()=>{ if (vecPickStart) { vecPickStart=false; vecPickEnd=true; } else { vecPickStart=true; vecPickEnd=false; } updateToolButtons(); };
-btnVecEnd.onclick=()=>{ if (vecPickEnd && vecStart && vecEnd) { addVectorArrow(vecStart, vecEnd); vecStart=vecEnd=null; markerLayer.clearTemps(); vecPickEnd=false; } else { vecPickEnd=true; vecPickStart=false; } updateToolButtons(); scheduleUpdateURL(); };
-document.getElementById('addVector').onclick=()=>{
-  if (!vecStart || !vecEnd) return;
-  addVectorArrow(vecStart, vecEnd);
-  vecStart=vecEnd=null; vecPickStart=vecPickEnd=false; markerLayer.clearTemps(); scheduleUpdateURL(); updateToolButtons();
-};
+if (btnVecStart) btnVecStart.onclick=()=>{ if (vecPickStart) { vecPickStart=false; vecPickEnd=true; } else { vecPickStart=true; vecPickEnd=false; } updateToolButtons(); };
+if (btnVecEnd) btnVecEnd.onclick=()=>{ if (vecPickEnd && vecStart && vecEnd) { addVectorArrow(vecStart, vecEnd); vecStart=vecEnd=null; markerLayer.clearTemps(); vecPickEnd=false; } else { vecPickEnd=true; vecPickStart=false; } updateToolButtons(); scheduleUpdateURL(); };
 document.getElementById('clearVectors').onclick=()=>{ vectorGroup.clear(); vectorItems=[]; scheduleUpdateURL(); };
 
 let uvPickStart=false, uvPickEnd=false, uvStart=null, uvEnd=null;
 const btnUVStart = document.getElementById('uvPickStart');
 const btnUVEnd = document.getElementById('uvPickEnd');
-btnUVStart.onclick=()=>{ if (uvPickStart) { uvPickStart=false; uvPickEnd=true; } else { uvPickStart=true; uvPickEnd=false; } updateToolButtons(); };
-btnUVEnd.onclick=()=>{ if (uvPickEnd && uvStart && uvEnd) { addUVLinePath(uvStart, uvEnd); uvStart=uvEnd=null; markerLayer.clearTemps(); uvPickEnd=false; } else { uvPickEnd=true; uvPickStart=false; } updateToolButtons(); scheduleUpdateURL(); };
-document.getElementById('addUVPath').onclick=()=>{
-  if (!uvStart || !uvEnd) return;
-  addUVLinePath(uvStart, uvEnd);
-  uvStart=uvEnd=null; uvPickStart=uvPickEnd=false; markerLayer.clearTemps(); scheduleUpdateURL(); updateToolButtons();
-};
+if (btnUVStart) btnUVStart.onclick=()=>{ if (uvPickStart) { uvPickStart=false; uvPickEnd=true; } else { uvPickStart=true; uvPickEnd=false; } updateToolButtons(); };
+if (btnUVEnd) btnUVEnd.onclick=()=>{ if (uvPickEnd && uvStart && uvEnd) { addUVLinePath(uvStart, uvEnd); uvStart=uvEnd=null; markerLayer.clearTemps(); uvPickEnd=false; } else { uvPickEnd=true; uvPickStart=false; } updateToolButtons(); scheduleUpdateURL(); };
 document.getElementById('clearUVPaths').onclick=()=>{ uvPathGroup.clear(); uvItems = []; scheduleUpdateURL(); };
 
 // Right-click: remove nearest marker
@@ -535,7 +527,6 @@ updateColors();
 animate();
 
 // ---------------- URL state sync (save/load) ----------------
-let urlTimer = null; // declare before first use to avoid TDZ
 const DEFAULTS = snapshotConfig();
 applyConfigFromURL();
 scheduleUpdateURL();
