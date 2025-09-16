@@ -225,8 +225,9 @@ document.getElementById('clipMode').addEventListener('change', () => {
   document.getElementById('clipRect').style.display = (mode==='rect') ? 'flex' : 'none';
   document.getElementById('clipCircle').style.display = (mode==='circle') ? 'flex' : 'none';
   updateClip();
+  updateRectLabels();
 });
-['clipRectW','clipRectH','clipRadius'].forEach(id => document.getElementById(id).addEventListener('input', updateClip));
+['clipRectW','clipRectH','clipRadius'].forEach(id => document.getElementById(id).addEventListener('input', ()=>{ updateClip(); updateRectLabels(); }));
 
 document.getElementById('geoEnable').addEventListener('change', rebuildGeodesics);
 document.getElementById('geoMethod').addEventListener('change', rebuildGeodesics);
@@ -477,6 +478,15 @@ function updateToolButtons(){
   const e = (id, on)=> { const el=document.getElementById(id); if (el) el.classList.toggle('active', !!on); };
   e('vecPickStart', vecPickStart); e('vecPickEnd', vecPickEnd);
   e('uvPickStart', uvPickStart); e('uvPickEnd', uvPickEnd);
+}
+
+function updateRectLabels(){
+  const wEl = document.getElementById('clipRectW');
+  const hEl = document.getElementById('clipRectH');
+  const wVal = document.getElementById('clipRectWVal');
+  const hVal = document.getElementById('clipRectHVal');
+  if (wEl && wVal) wVal.textContent = parseFloat(wEl.value).toFixed(2);
+  if (hEl && hVal) hVal.textContent = parseFloat(hEl.value).toFixed(2);
 }
 
 function removeNearestVectorOrUV(px, py){
