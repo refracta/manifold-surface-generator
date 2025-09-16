@@ -11,9 +11,12 @@ export function buildClipBoundary(state, clip) {
   const sdf = (clip.mode === 'rect')
     ? (x,z)=>Math.max(Math.abs(x)-w, Math.abs(z)-h)
     : (x,z)=>Math.hypot(x,z)-r;
+  if (clip.mode === 'rect') {
+    const geos = rectPlanesBoundary(state, w, h);
+    if (geos.length) return geos;
+  }
   const geos = marchingGridBoundary(state, sdf);
   if (geos.length) return geos;
-  // fallback
   return triangulatedBoundary(state, sdf);
 }
 
@@ -286,6 +289,51 @@ function polylineToGeometry(loop) {
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(arr,3));
   return geo;
+}
+
+// Build four sides independently by intersecting triangles with planes x = ±w, z = ±h
+function rectPlanesBoundary(state, w, h){
+  const pos = state.geometry.attributes.position;
+  const idx = state.geometry.index;
+  const aCount = idx ? idx.count : pos.count;
+  const getIndex = (i) => idx ? idx.getX(i) : i;
+
+  function collectForPlane(kind){
+    const segs=[]; const eps=1e-8;
+    const side = (p)=>{
+      if (kind==='xp') return p.x - w;
+      if (kind==='xn') return p.x + w;
+      if (kind==='zp') return p.z - h;
+      return p.z + h;
+    };
+    const inRange = (p)=> (Math.abs(p.z) <= h+1e-3 && Math.abs(p.x) <= w+1e-3);
+    for (let t=0;t<aCount;t+=3){
+      const ia=getIndex(t), ib=getIndex(t+1), ic=getIndex(t+2);
+      const A={ x:pos.getX(ia), y:pos.getY(ia), z:pos.getZ(ia) };
+      const B={ x:pos.getX(ib), y:pos.getY(ib), z:pos.getZ(ib) };
+      const C={ x:pos.getX(ic), y:pos.getY(ic), z:pos.getZ(ic) };
+      const fA=side(A), fB=side(B), fC=side(C);
+      const P=[[A,fA],[B,fB],[C,fC]]; const edges=[[0,1],[1,2],[2,0]]; const pts=[];
+      for (const [i,j] of edges){
+        const a=P[i][0], b=P[j][0]; const fa=P[i][1], fb=P[j][1];
+        if ((fa<=0 && fb>=0) || (fa>=0 && fb<=0)){
+          const d = fb-fa; const t = Math.abs(d)<eps ? 0 : (-fa/d);
+          const p={ x:a.x+(b.x-a.x)*t, y:a.y+(b.y-a.y)*t, z:a.z+(b.z-a.z)*t };
+          if (inRange(p)) pts.push(p);
+        }
+      }
+      if (pts.length===2) segs.push([pts[0],[pts[1].x,pts[1].y,pts[1].z]]);
+    }
+    const loops = joinSegments(segs);
+    return loops.map(loop=>polylineToGeometry(loop));
+  }
+
+  return [
+    ...collectForPlane('xp'),
+    ...collectForPlane('xn'),
+    ...collectForPlane('zp'),
+    ...collectForPlane('zn'),
+  ];
 }
 
 // Marching-squares on UV grid using SDF(x,z) to build boundary
