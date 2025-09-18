@@ -834,6 +834,9 @@ function snapshotConfig() {
       gap: parseFloat(document.getElementById('uvGap')?.value || '0.06'),
       items: uvItems.map(it=>({ su:it.su,sv:it.sv, eu:it.eu,ev:it.ev, color:it.color, width:it.width, style:it.style }))
     }
+    ,export: {
+      pngScale: parseFloat(document.getElementById('pngScale')?.value || '1')
+    }
   };
   // preset specific values
   const def = SurfacePresets[cfg.preset];
@@ -981,6 +984,11 @@ function applyConfig(diff) {
     if (l.amb!=null) document.getElementById('ambIntensity').value = l.amb;
     if (l.hemi!=null) document.getElementById('hemiIntensity').value = l.hemi;
     if (l.dir!=null) document.getElementById('dirIntensity').value = l.dir;
+  }
+  if (diff.export) {
+    if (diff.export.pngScale!=null) {
+      const e=document.getElementById('pngScale'); if (e) e.value = diff.export.pngScale;
+    }
   }
   // Wireframe
   if (diff.wireframe!=null) document.getElementById('wireframe').checked = !!diff.wireframe;
