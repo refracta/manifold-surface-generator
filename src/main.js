@@ -401,6 +401,7 @@ let rotateTarget = null; // THREE.Group (surfaceGroup)
 let rotateEntry = null; // surfaces[] entry
 let rotStartX = 0, rotStartY = 0;
 let rotStartRX = 0, rotStartRY = 0, rotStartRZ = 0;
+let rotateAxesHelper = null;
 
 function findSurfaceGroupFromObject(obj){
   let g = obj;
@@ -438,6 +439,19 @@ renderer.domElement.addEventListener('pointerdown', (ev) => {
         rotStartX = ev.clientX; rotStartY = ev.clientY;
         rotStartRX = rotateTarget.rotation.x; rotStartRY = rotateTarget.rotation.y; rotStartRZ = rotateTarget.rotation.z;
         controls.enabled = false;
+        // Add temporary axes helper sized to the surface bounds
+        try {
+          let mesh = null; rotateTarget.traverse(o=>{ if (!mesh && o.isMesh) mesh = o; });
+          let len = 1.0;
+          if (mesh && mesh.geometry) {
+            const g = mesh.geometry; if (!g.boundingBox) g.computeBoundingBox();
+            if (g.boundingBox) { const size=new THREE.Vector3(); g.boundingBox.getSize(size); len = Math.max(size.x,size.y,size.z) * 0.6; }
+          }
+          rotateAxesHelper = new THREE.AxesHelper(len);
+          rotateAxesHelper.raycast = ()=>{}; // avoid picking helper
+          rotateAxesHelper.renderOrder = 9999;
+          rotateTarget.add(rotateAxesHelper);
+        } catch {}
       }
     }
   }
@@ -472,6 +486,8 @@ renderer.domElement.addEventListener('pointerup', (ev) => {
       refreshLineClipMatrices(rotateTarget);
       scheduleUpdateURL();
     }
+    if (rotateAxesHelper && rotateAxesHelper.parent) { try { rotateAxesHelper.parent.remove(rotateAxesHelper); } catch {} }
+    rotateAxesHelper = null;
     rotateTarget = null; rotateEntry = null;
     return; // do not treat as click
   }
@@ -806,6 +822,12 @@ window.addEventListener('keydown', async (e)=>{
   if (e.code==='KeyO') {
     e.preventDefault();
     document.getElementById('resetCamera')?.click();
+    return;
+  }
+  // Digit 1..9: switch active surface quickly
+  if (/^Digit[1-9]$/.test(e.code)) {
+    const idx = parseInt(e.code.slice(5), 10) - 1; // 0-based
+    if (idx>=0 && idx<surfaces.length) { setActiveSurface(surfaces[idx].id); scheduleUpdateURL(); }
     return;
   }
   // Camera WASD + Space(Up)/Shift(Down)
