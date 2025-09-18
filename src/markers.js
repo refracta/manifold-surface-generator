@@ -54,12 +54,22 @@ export class MarkerLayer {
     svg.appendChild(shapeEl);
     wrap.appendChild(svg);
     this.container.appendChild(wrap);
-    this.markers.push({ position: position.clone(), el: wrap, svg, shapeEl, size, color, alpha, shape, outline: ow, outlineColor: oc, sx:0, sy:0 });
+    const rec = { position: position.clone(), el: wrap, svg, shapeEl, size, color, alpha, shape, outline: ow, outlineColor: oc, sx:0, sy:0 };
+    this.markers.push(rec);
+    return rec;
   }
 
   clear() {
     for (const m of this.markers) m.el.remove();
     this.markers.length = 0;
+  }
+
+  translate(delta) {
+    if (!delta) return;
+    const dx = delta.x || 0, dy = delta.y || 0, dz = delta.z || 0;
+    if (dx === 0 && dy === 0 && dz === 0) return;
+    for (const m of this.markers) { m.position.x += dx; m.position.y += dy; m.position.z += dz; }
+    for (const t of this.temps) { t.position.x += dx; t.position.y += dy; t.position.z += dz; }
   }
 
   update(camera, renderer) {
@@ -137,3 +147,6 @@ function hexToRgba(hex, a=1) {
   const b = parseInt(h.substring(4,6),16);
   return `rgba(${r}, ${g}, ${b}, ${a})`;
 }
+
+
+

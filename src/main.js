@@ -45,36 +45,44 @@ const dir = new THREE.DirectionalLight(0xffffff, 0.8);
 dir.position.set(2, 3, 2);
 scene.add(dir);
 
-// State
-let surfaceGroup = null; // contains mesh and optional lines
-let surfaceState = null; // geometry bookkeeping
-let geodesicGroup = new THREE.Group();
-let clipLinesGroup = new THREE.Group();
-let vectorGroup = new THREE.Group();
-let uvPathGroup = new THREE.Group();
+// State (single-active-surface with multi-surface management)
+let surfaceGroup = null; // active surface mesh group
+let surfaceState = null; // active surface geometry/state
+// Per-surface overlays live under each surfaceGroup (_geoGroup, _outlineGroup).
+// Vectors and UV paths are attached to each surfaceGroup when created.
 let vectorItems = [];
 let uvItems = [];
-scene.add(geodesicGroup);
-scene.add(clipLinesGroup);
-scene.add(vectorGroup);
-scene.add(uvPathGroup);
 
-let params = createSurfaceParams('ripple'); // start preset
+// Multi-surface registry
+const surfaces = [];
+let activeSurfaceId = null;
+let surfaceIdCounter = 1;
+
+let params = null; // active surface params
+let suppressURL = false;
 
 function regenerateSurface() {
-  if (surfaceGroup) scene.remove(surfaceGroup);
+  if (!params) return;
+  const entry = getActiveSurface ? getActiveSurface() : null;
+  if (entry && entry.surfaceGroup) { try { scene.remove(entry.surfaceGroup); } catch {}
+  }
   const { group, state } = buildSurface(params);
+  if (entry) entry.surfaceGroup = group;
   surfaceGroup = group;
   surfaceState = state;
   scene.add(surfaceGroup);
+  // overlay groups are per-surface (_geoGroup/_outlineGroup). Vectors/UV paths attach on creation.
   updateClip();
   rebuildGeodesics();
   rebuildBoundaryLines();
+  rebuildVectorsAndUV();
   applyMaterialSettings();
 }
 
 function rebuildGeodesics() {
-  geodesicGroup.clear();
+  if (!surfaceGroup || !surfaceState) return;
+  if (!surfaceGroup._geoGroup) { surfaceGroup._geoGroup = new THREE.Group(); surfaceGroup.add(surfaceGroup._geoGroup); }
+  const container = surfaceGroup._geoGroup; container.clear();
   if (!document.getElementById('geoEnable').checked) return;
   const style = document.getElementById('geoStyle').value;
   const color = new THREE.Color(document.getElementById('geoColor').value);
@@ -102,11 +110,11 @@ function rebuildGeodesics() {
       const line = toLine2(g, { style, color, alpha, width, depthTest: true, dash, gap });
       makeLineClippable(line.material, surfaceState.mesh);
       setLineClip(line.material, params.clip, params.scale);
-      geodesicGroup.add(line);
+      container.add(line);
     }
   }
   // Boundary lines handled separately
-  // Edge‑shortest path added interactively via buttons
+  // Edge-shortest path added interactively via buttons
 }
 
 function updateColors() {
@@ -194,19 +202,17 @@ function updateClip() {
   const radius = parseFloat(document.getElementById('clipRadius').value);
   params.clip = { mode, rectW, rectH, radius };
   if (surfaceState) { setClip(surfaceState.mesh.material, params.clip, params.scale); }
-  geodesicGroup.traverse(obj => {
+  if (surfaceGroup?._geoGroup) surfaceGroup._geoGroup.traverse(obj => {
     if (obj.material && obj.material.userData && obj.material.userData.clipUniforms) {
       setLineClip(obj.material, params.clip, params.scale);
     }
   });
-  clipLinesGroup.traverse(obj => {
-    if (obj.isLine2 || obj.isLine) {
-      if (obj.material && obj.material.userData && obj.material.userData.clipUniforms) {
-        setLineClip(obj.material, overlayClipParams(), params.scale, true);
-      }
+  if (surfaceGroup?._outlineGroup) surfaceGroup._outlineGroup.traverse(obj => {
+    if (obj.material && obj.material.userData && obj.material.userData.clipUniforms) {
+      setLineClip(obj.material, overlayClipParams(), params.scale, true);
     }
   });
-  // Regenerate geodesics so their polylines are CPU‑clipped to new mask
+  // Regenerate geodesics so their polylines are CPU-clipped to new mask
   rebuildGeodesics();
   rebuildBoundaryLines();
 }
@@ -268,11 +274,12 @@ document.getElementById('addPath').onclick = () => {
     const line = toLine2(g, { style, color, alpha, width, depthTest: true, dash, gap });
     makeLineClippable(line.material, surfaceState.mesh);
     setLineClip(line.material, params.clip, params.scale);
-    geodesicGroup.add(line);
+    if (!surfaceGroup._geoGroup) { surfaceGroup._geoGroup = new THREE.Group(); surfaceGroup.add(surfaceGroup._geoGroup); }
+    surfaceGroup._geoGroup.add(line);
   }
   pickedStart = pickedEnd = null; pickingStart = pickingEnd = false;
 };
-document.getElementById('clearGeodesics').onclick = () => { geodesicGroup.clear(); rebuildGeodesics(); };
+document.getElementById('clearGeodesics').onclick = () => { if (surfaceGroup?._geoGroup) surfaceGroup._geoGroup.clear(); rebuildGeodesics(); };
 
 // Vector tools state
 let vecPickStart=false, vecPickEnd=false, vecStart=null, vecEnd=null;
@@ -280,20 +287,20 @@ const btnVecStart = document.getElementById('vecPickStart');
 const btnVecEnd = document.getElementById('vecPickEnd');
 if (btnVecStart) btnVecStart.onclick=()=>{ if (vecPickStart) { vecPickStart=false; vecPickEnd=true; } else { vecPickStart=true; vecPickEnd=false; } updateToolButtons(); };
 if (btnVecEnd) btnVecEnd.onclick=()=>{ if (vecPickEnd && vecStart && vecEnd) { addVectorArrow(vecStart, vecEnd); vecStart=vecEnd=null; markerLayer.clearTemps(); vecPickEnd=false; } else { vecPickEnd=true; vecPickStart=false; } updateToolButtons(); scheduleUpdateURL(); };
-document.getElementById('clearVectors').onclick=()=>{ vectorGroup.clear(); vectorItems=[]; scheduleUpdateURL(); };
+document.getElementById('clearVectors').onclick=()=>{ const cur=getActiveSurface(); const list = cur?.vectorItems || vectorItems; for (const it of (list||[])){ try{ it.obj?.parent?.remove(it.obj); it.cone?.parent?.remove(it.cone);}catch{} } if (cur) cur.vectorItems=[]; vectorItems=[]; scheduleUpdateURL(); };
 
 let uvPickStart=false, uvPickEnd=false, uvStart=null, uvEnd=null;
 const btnUVStart = document.getElementById('uvPickStart');
 const btnUVEnd = document.getElementById('uvPickEnd');
 if (btnUVStart) btnUVStart.onclick=()=>{ if (uvPickStart) { uvPickStart=false; uvPickEnd=true; } else { uvPickStart=true; uvPickEnd=false; } updateToolButtons(); };
 if (btnUVEnd) btnUVEnd.onclick=()=>{ if (uvPickEnd && uvStart && uvEnd) { addUVLinePath(uvStart, uvEnd); uvStart=uvEnd=null; markerLayer.clearTemps(); uvPickEnd=false; } else { uvPickEnd=true; uvPickStart=false; } updateToolButtons(); scheduleUpdateURL(); };
-document.getElementById('clearUVPaths').onclick=()=>{ uvPathGroup.clear(); uvItems = []; scheduleUpdateURL(); };
+document.getElementById('clearUVPaths').onclick=()=>{ const cur=getActiveSurface(); const list = cur?.uvItems || uvItems; for (const it of (list||[])){ try{ it.obj?.parent?.remove(it.obj);}catch{} } if (cur) cur.uvItems=[]; uvItems = []; scheduleUpdateURL(); };
 
 // Right-click: remove nearest marker
 renderer.domElement.addEventListener('contextmenu', (ev) => {
   ev.preventDefault();
   const rect = renderer.domElement.getBoundingClientRect();
-  const removed = markerLayer.removeNearestAt(ev.clientX - rect.left, ev.clientY - rect.top, 24);
+  const removed = removeNearestMarker(ev.clientX - rect.left, ev.clientY - rect.top);
   let any = removed;
   if (!removed) { any = removeNearestVectorOrUV(ev.clientX - rect.left, ev.clientY - rect.top) || any; }
   if (any) scheduleUpdateURL();
@@ -307,11 +314,48 @@ const markerColor = document.getElementById('markerColor');
 const markerAlpha = document.getElementById('markerAlpha');
 const markerOutline = document.getElementById('markerOutline');
 const markerOutlineColor = document.getElementById('markerOutlineColor');
-document.getElementById('clearMarkers').onclick = () => { markerLayer.clear(); scheduleUpdateURL(); };
+document.getElementById('clearMarkers').onclick = () => { const cur = (typeof getActiveSurface==='function') ? getActiveSurface() : null; if (cur) cur.markerItems = []; rebuildAllMarkersOverlay?.(); scheduleUpdateURL(); };
 markersEnable.addEventListener('change', () => markerLayer.setVisible(markersEnable.checked));
 markerAlpha.addEventListener('input', () => markerLayer.setAlpha(parseFloat(markerAlpha.value)));
 markerOutline?.addEventListener('input', () => { markerLayer.setDefaultOutline(parseFloat(markerOutline.value)); scheduleUpdateURL(); });
 markerOutlineColor?.addEventListener('input', () => { markerLayer.setDefaultOutlineColor(markerOutlineColor.value); scheduleUpdateURL(); });
+
+// -------- Markers per-surface management --------
+function ensureSurfaceMarkerList(){ const cur=getActiveSurface(); if (!cur) return null; if (!cur.markerItems) cur.markerItems=[]; return cur.markerItems; }
+function rebuildAllMarkersOverlay(){
+  markerLayer.clear();
+  for (const s of surfaces){
+    const list = s.markerItems || [];
+    for (let i=0;i<list.length;i++){
+      const m = list[i];
+      const pos = new THREE.Vector3(m.x||0,m.y||0,m.z||0);
+      const added = markerLayer.addMarker(pos, { shape: m.shape||'circle', size: m.size||24, color: m.color||'#e53935', alpha: m.alpha==null?1:m.alpha, outline: m.outline, outlineColor: m.outlineColor });
+      if (added) { added._sid = s.id; added._mindex = i; }
+    }
+  }
+}
+function addMarkerToActiveSurface(worldPos){
+  const list = ensureSurfaceMarkerList(); if (!list) return;
+  list.push({ x: worldPos.x, y: worldPos.y, z: worldPos.z,
+    shape: markerShape.value, size: parseInt(markerSize.value,10), color: markerColor.value,
+    alpha: parseFloat(markerAlpha.value), outline: parseFloat(markerOutline?.value||'3'), outlineColor: markerOutlineColor?.value||'#ffffff' });
+  rebuildAllMarkersOverlay();
+}
+function removeNearestMarker(px,py){
+  // find nearest in overlay layer markers
+  const markers = markerLayer.markers || []; if (!markers.length) return false;
+  let best=-1, bestD=1e12; const maxD=24*24;
+  for (let i=0;i<markers.length;i++){
+    const m=markers[i]; const dx=m.sx-px, dy=m.sy-py; const d=dx*dx+dy*dy; if (d<bestD){ bestD=d; best=i; }
+  }
+  if (best<0 || bestD>maxD) return false;
+  const m = markers[best]; const sid=m._sid; const idx=m._mindex;
+  if (sid){ const surf = surfaces.find(s=>s.id===sid); if (surf && surf.markerItems && idx>=0 && idx<surf.markerItems.length){ surf.markerItems.splice(idx,1); }
+  }
+  // rebuild overlay entirely to refresh indices
+  rebuildAllMarkersOverlay();
+  return true;
+}
 
 // Export
 document.getElementById('savePng').onclick = () => savePNG(parseFloat(document.getElementById('pngScale').value||'1'));
@@ -324,6 +368,10 @@ document.getElementById('resetAll').onclick = () => {
   markerLayer.clear();
   camera.position.copy(defaultCamPos);
   controls.target.set(0,0,0); controls.update();
+  // reset to one default surface
+  while (surfaces.length) surfaces.pop();
+  const first = createSurfaceEntry(createSurfaceParams('ripple'), 'Surface 1');
+  setActiveSurface(first.id, { silent: true });
   applyConfig(DEFAULTS);
   // Explicitly remove cfg from URL immediately
   const sp = new URLSearchParams(window.location.search); sp.delete('cfg');
@@ -359,7 +407,22 @@ renderer.domElement.addEventListener('pointerup', (ev) => {
   pointer.x = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
   pointer.y = -((ev.clientY - rect.top) / rect.height) * 2 + 1;
   raycaster.setFromCamera(pointer, camera);
-  const hit = raycaster.intersectObject(surfaceState.mesh, true)[0];
+  // Raycast against all surface meshes if available
+  let hit = null;
+  try {
+    const meshes = [];
+    if (surfaceState?.mesh) meshes.push(surfaceState.mesh);
+    // Collect any additional meshes attached to scene under root children
+    scene.traverse(obj=>{ if (obj.isMesh && obj.geometry && obj.material) meshes.push(obj); });
+    const hits = raycaster.intersectObjects(meshes, true);
+    hit = hits && hits[0];
+  } catch {}
+  // restrict interactions to active surface only
+  if (hit && surfaceGroup) {
+    let o = hit.object, ok = false;
+    while (o) { if (o === surfaceGroup) { ok = true; break; } o = o.parent; }
+    if (!ok) return;
+  }
   if (!hit) return;
 
   if (pickingStart || pickingEnd) {
@@ -385,15 +448,7 @@ renderer.domElement.addEventListener('pointerup', (ev) => {
     updateToolButtons();
     return;
   }
-  if (markersEnable.checked) {
-    markerLayer.addMarker(hit.point.clone(), {
-      shape: markerShape.value,
-      size: parseInt(markerSize.value, 10),
-      color: markerColor.value,
-      alpha: parseFloat(markerAlpha.value),
-    });
-    scheduleUpdateURL();
-  }
+  if (markersEnable.checked) { addMarkerToActiveSurface(hit.point.clone()); scheduleUpdateURL(); }
 });
 
 // Render
@@ -409,9 +464,9 @@ function renderOnce() { renderer.render(scene, camera); }
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
-  // update resolution for fat line materials
+  // update resolution for fat line materials across scene
   const w = renderer.domElement.clientWidth, h = renderer.domElement.clientHeight;
-  [...geodesicGroup.children, ...clipLinesGroup.children].forEach(obj => { if (obj.material && obj.material.resolution) obj.material.resolution.set(w,h); });
+  setLineResolutions(w,h);
 });
 
 // Export helpers
@@ -463,7 +518,9 @@ function savePNG(scale=1) {
 }
 
 function setLineResolutions(w,h){
-  [...geodesicGroup.children, ...clipLinesGroup.children, ...vectorGroup.children, ...uvPathGroup.children].forEach(obj => { if (obj.material && obj.material.resolution) obj.material.resolution.set(w,h); });
+  // Update resolutions for all line materials across all surfaces
+  const seen = new Set();
+  scene.traverse(o=>{ if ((o.isLine2 || o.isLine) && o.material && o.material.resolution && !seen.has(o)) { seen.add(o); o.material.resolution.set(w,h); } });
 }
 
 function exportGLB(group) {
@@ -505,33 +562,55 @@ function updateRectLabels(){
   if (hEl && hVal) hVal.textContent = parseFloat(hEl.value).toFixed(2);
 }
 
+function updateOffsetLabels(){
+  const ox = document.getElementById('offsetX');
+  const oy = document.getElementById('offsetY');
+  const oz = document.getElementById('offsetZ');
+  const vx = document.getElementById('offsetXVal');
+  const vy = document.getElementById('offsetYVal');
+  const vz = document.getElementById('offsetZVal');
+  if (ox && vx) vx.textContent = Number(ox.value ?? 0).toFixed(2);
+  if (oy && vy) vy.textContent = Number(oy.value ?? 0).toFixed(2);
+  if (oz && vz) vz.textContent = Number(oz.value ?? 0).toFixed(2);
+}
+
 function removeNearestVectorOrUV(px, py){
   const w = renderer.domElement.clientWidth, h = renderer.domElement.clientHeight;
-  const dist2 = (x,y,a,b,c,d)=>{ // point to segment distance squared
-    const vx=c-a, vy=d-b; const wx=x-a, wy=y-b; const c1=vx*wx+vy*wy; if (c1<=0) return (x-a)**2+(y-b)**2; const c2=vx*vx+vy*vy; if (c2<=c1) return (x-c)**2+(y-d)**2; const t=c1/c2; const qx=a+t*vx, qy=b+t*vy; return (x-qx)**2+(y-qy)**2; };
-  function screen(p){ const v=p.clone().project(camera); return {x:(v.x*0.5+0.5)*w, y:(-v.y*0.5+0.5)*h}; }
-  let best={type:null,idx:-1,d:1e12};
-  // vectors
-  vectorItems.forEach((it,idx)=>{
-    const a=screen(new THREE.Vector3(it.sx,it.sy,it.sz));
-    const b=screen(new THREE.Vector3(it.ex,it.ey,it.ez));
-    const d=dist2(px,py,a.x,a.y,b.x,b.y); if (d<best.d) best={type:'vec',idx,d};
-  });
-  // uv paths
-  uvItems.forEach((it,idx)=>{
-    const obj = it.obj; if (!obj) return; const pos = obj.geometry.getAttribute('position'); let dmin=1e12;
-    for (let i=0;i<pos.count-1;i++){
-      const p0=screen(new THREE.Vector3(pos.getX(i),pos.getY(i),pos.getZ(i)));
-      const p1=screen(new THREE.Vector3(pos.getX(i+1),pos.getY(i+1),pos.getZ(i+1)));
-      const d=dist2(px,py,p0.x,p0.y,p1.x,p1.y); if (d<dmin) dmin=d;
-    }
-    if (dmin<best.d) best={type:'uv',idx,d:dmin};
-  });
-  const thresh=12*12; if (best.d>thresh || best.idx<0) return false;
+  const dist2 = (x,y,a,b,c,d)=>{ const vx=c-a, vy=d-b; const wx=x-a, wy=y-b; const c1=vx*wx+vy*wy; if (c1<=0) return (x-a)**2+(y-b)**2; const c2=vx*vx+vy*vy; if (c2<=c1) return (x-c)**2+(y-d)**2; const t=c1/c2; const qx=a+t*vx, qy=b+t*vy; return (x-qx)**2+(y-qy)**2; };
+  const screen = (p)=>{ const v=p.clone().project(camera); return {x:(v.x*0.5+0.5)*w, y:(-v.y*0.5+0.5)*h}; };
+  let best = { type:null, entry:null, idx:-1, d:1e12 };
+  for (const entry of surfaces){
+    const vItems = entry.vectorItems || [];
+    vItems.forEach((it,idx)=>{
+      const wpA = new THREE.Vector3(it.sx,it.sy,it.sz);
+      const wpB = new THREE.Vector3(it.ex,it.ey,it.ez);
+      if (entry.surfaceGroup) { entry.surfaceGroup.localToWorld(wpA); entry.surfaceGroup.localToWorld(wpB); }
+      const a=screen(wpA);
+      const b=screen(wpB);
+      const d=dist2(px,py,a.x,a.y,b.x,b.y); if (d<best.d) best={type:'vec',entry,idx,d};
+    });
+    const uItems = entry.uvItems || [];
+    uItems.forEach((it,idx)=>{
+      const obj = it.obj; if (!obj) return; const pos = obj.geometry.getAttribute('position'); let dmin=1e12;
+      const wp0=new THREE.Vector3(), wp1=new THREE.Vector3(); obj.updateMatrixWorld(true);
+      for (let i=0;i<pos.count-1;i++){
+        wp0.set(pos.getX(i),pos.getY(i),pos.getZ(i)); wp1.set(pos.getX(i+1),pos.getY(i+1),pos.getZ(i+1));
+        obj.localToWorld(wp0); obj.localToWorld(wp1);
+        const p0=screen(wp0); const p1=screen(wp1);
+        const d=dist2(px,py,p0.x,p0.y,p1.x,p1.y); if (d<dmin) dmin=d;
+      }
+      if (dmin<best.d) best={type:'uv',entry,idx,d:dmin};
+    });
+  }
+  const thresh=12*12; if (best.d>thresh || best.idx<0 || !best.entry) return false;
   if (best.type==='vec') {
-    const it=vectorItems[best.idx]; if (it.obj) vectorGroup.remove(it.obj); if (it.cone) vectorGroup.remove(it.cone); vectorItems.splice(best.idx,1); return true;
+    const list = best.entry.vectorItems || []; const it=list[best.idx];
+    if (it?.obj) it.obj.parent?.remove(it.obj); if (it?.cone) it.cone.parent?.remove(it.cone);
+    list.splice(best.idx,1); if (best.entry.id===activeSurfaceId) vectorItems = list; return true;
   } else if (best.type==='uv') {
-    const it=uvItems[best.idx]; if (it.obj) uvPathGroup.remove(it.obj); uvItems.splice(best.idx,1); return true;
+    const list = best.entry.uvItems || []; const it=list[best.idx];
+    if (it?.obj) it.obj.parent?.remove(it.obj);
+    list.splice(best.idx,1); if (best.entry.id===activeSurfaceId) uvItems = list; return true;
   }
   return false;
 }
@@ -564,15 +643,199 @@ addStopRow(1, '#ff9aa2');
 document.getElementById('bgAlpha').value = '1';
 updateBackground();
 
-// Start
-setPreset('ripple');
+// -------- Multi-surface: minimal manager (render all meshes; edit active) --------
+function getSurface(id) { return surfaces.find(s => s.id === id); }
+function getActiveSurface() { return getSurface(activeSurfaceId); }
+
+function createSurfaceEntry(baseParams, name) {
+  const id = `surface_${surfaceIdCounter++}`;
+  const p = baseParams ? JSON.parse(JSON.stringify(baseParams)) : createSurfaceParams('ripple');
+  const entry = { id, name: name || `Surface ${surfaces.length + 1}`, params: p, savedConfig: null, offset: { x:0, y:0, z:0 } };
+  surfaces.push(entry);
+  return entry;
+}
+
+function bindActive(entry) {
+  params = entry.params;
+  vectorItems = entry.vectorItems || (entry.vectorItems = []);
+  uvItems = entry.uvItems || (entry.uvItems = []);
+}
+
+function saveActive() {
+  const cur = getActiveSurface(); if (!cur) return;
+  cur.params = params;
+  cur.savedConfig = snapshotConfig();
+}
+
+function setActiveSurface(id, opts={}){
+  if (activeSurfaceId === id) return;
+  if (activeSurfaceId) saveActive();
+  const entry = getSurface(id); if (!entry) return;
+  activeSurfaceId = id;
+  bindActive(entry);
+  // Apply saved UI for that surface if available
+  if (entry.savedConfig) {
+    // applyConfig will rebuild geometry and then apply offset at the end
+    applyConfig(entry.savedConfig);
+  } else {
+    regenerateSurface();
+    if (surfaceGroup) {
+      surfaceGroup.position.set(entry.offset.x, entry.offset.y, entry.offset.z);
+    }
+  }
+  // Reflect offset in UI fields
+  const ox = document.getElementById('offsetX');
+  const oy = document.getElementById('offsetY');
+  const oz = document.getElementById('offsetZ');
+  if (ox) ox.value = String(entry.offset.x||0);
+  if (oy) oy.value = String(entry.offset.y||0);
+  if (oz) oz.value = String(entry.offset.z||0);
+  updateOffsetLabels();
+  updateSurfaceManagerUI();
+  if (typeof rebuildAllMarkersOverlay==='function') rebuildAllMarkersOverlay();
+}
+
+function updateSurfaceManagerUI(){
+  const sel = document.getElementById('surfaceSelect');
+  if (sel) {
+    const prev = sel.value;
+    sel.innerHTML='';
+    for (const s of surfaces) { const o=document.createElement('option'); o.value=s.id; o.textContent=s.name||s.id; sel.appendChild(o); }
+    if (activeSurfaceId) sel.value = activeSurfaceId; else if (sel.options.length) sel.selectedIndex=0;
+  }
+  const nameEl = document.getElementById('surfaceName');
+  if (nameEl) { const cur=getActiveSurface(); nameEl.value = cur?.name || ''; }
+}
+
+function updateSurfaceSelect(){ updateSurfaceManagerUI(); }
+
+// Hook manager UI
+document.getElementById('surfaceSelect')?.addEventListener('change', (e)=>setActiveSurface(e.target.value));
+document.getElementById('addSurface')?.addEventListener('click', ()=>{
+  saveActive(); const base = params || createSurfaceParams('ripple'); const entry = createSurfaceEntry(base);
+  setActiveSurface(entry.id);
+});
+document.getElementById('removeSurface')?.addEventListener('click', ()=>{
+  if (!activeSurfaceId) return; const idx = surfaces.findIndex(s=>s.id===activeSurfaceId); if (idx<0) return;
+  const mesh = surfaceGroup; if (mesh && mesh.parent) mesh.parent.remove(mesh);
+  surfaces.splice(idx,1);
+  const next = surfaces[idx] || surfaces[idx-1] || surfaces[0];
+  if (next) setActiveSurface(next.id); else { params=null; surfaceGroup=null; surfaceState=null; }
+  updateSurfaceManagerUI();
+  if (typeof rebuildAllMarkersOverlay==='function') rebuildAllMarkersOverlay();
+});
+document.getElementById('surfaceName')?.addEventListener('input', (e)=>{ const cur=getActiveSurface(); if(cur){ cur.name=e.target.value||''; updateSurfaceManagerUI(); }});
+
+// Location sliders per active surface
+function applyOffsetFromUI(){
+  const sx=parseFloat(document.getElementById('offsetX')?.value||'0');
+  const sy=parseFloat(document.getElementById('offsetY')?.value||'0');
+  const sz=parseFloat(document.getElementById('offsetZ')?.value||'0');
+  if (surfaceGroup) surfaceGroup.position.set(sx,sy,sz);
+  const cur=getActiveSurface(); if (cur) cur.offset={x:sx,y:sy,z:sz};  scheduleUpdateURL();
+  updateOffsetLabels();
+}
+['offsetX','offsetY','offsetZ'].forEach(id=>document.getElementById(id)?.addEventListener('input', applyOffsetFromUI));
+
+// Boot: start with one surface
+const first = createSurfaceEntry(createSurfaceParams('ripple'), 'Surface 1');
+setActiveSurface(first.id);
 updateColors();
 animate();
 
 // ---------------- URL state sync (save/load) ----------------
 const DEFAULTS = snapshotConfig();
+
+function snapshotAppState(){
+  // Save current active
+  const active = activeSurfaceId;
+  const arr = surfaces.map(s => ({ id: s.id, name: s.name,
+    config: (function(){
+      const oldParams = params; const oldActive = activeSurfaceId; const oldVec = vectorItems; const oldUV = uvItems;
+      let cfg;
+      try { activeSurfaceId = s.id; params = s.params; vectorItems = s.vectorItems || []; uvItems = s.uvItems || []; cfg = snapshotConfig(); }
+      catch(e){ cfg = s.savedConfig || DEFAULTS; }
+      finally { params = oldParams; activeSurfaceId = oldActive; vectorItems = oldVec; uvItems = oldUV; }
+      // Ensure location reflects this surface entry's offset, not the current active group's transform
+      if (!cfg) cfg = {};
+      const off = s.offset || { x:0, y:0, z:0 };
+      cfg.location = { x: Number(off.x||0), y: Number(off.y||0), z: Number(off.z||0) };
+      return cfg;
+    })() }));
+  return { active, surfaces: arr };
+}
+
+let DEFAULT_APP = snapshotAppState();
+
 applyConfigFromURL();
-scheduleUpdateURL();
+
+function setAppState(state){
+  if (!state || !Array.isArray(state.surfaces) || state.surfaces.length===0) return;
+  // clear scene meshes
+  if (surfaceGroup && surfaceGroup.parent) surfaceGroup.parent.remove(surfaceGroup);
+  surfaces.splice(0, surfaces.length);
+  // rebuild surfaces
+  for (const entry of state.surfaces){
+    const e = createSurfaceEntry(null, entry.name || entry.id);
+    e.id = entry.id || `surface_${surfaceIdCounter++}`;
+    e.savedConfig = entry.config || null;
+    // adopt stored location into offset so we don't rely on active surfaceGroup state
+    const loc = entry?.config?.location;
+    if (loc && typeof loc === 'object') {
+      e.offset = { x: Number(loc.x||0), y: Number(loc.y||0), z: Number(loc.z||0) };
+    }
+  }
+  updateSurfaceManagerUI();
+  if (typeof rebuildAllMarkersOverlay==='function') rebuildAllMarkersOverlay();
+  const target = state.active && surfaces.find(s=>s.id===state.active) ? state.active : surfaces[0].id;
+  suppressURL = true;
+  setActiveSurface(target, { silent: true });
+  // build meshes for all (switch around silently), applying each savedConfig
+  const cur = activeSurfaceId;
+  for (const s of surfaces){
+    setActiveSurface(s.id, { silent: true });
+    if (s.savedConfig) applyConfig(s.savedConfig);
+    regenerateSurface();
+    // ensure offset is applied on the created mesh
+    if (s.surfaceGroup && s.offset) s.surfaceGroup.position.set(s.offset.x, s.offset.y, s.offset.z);
+  }
+  setActiveSurface(cur, { silent: true });
+  suppressURL = false;
+  if (typeof rebuildAllMarkersOverlay==='function') rebuildAllMarkersOverlay();
+}
+
+function updateURLFromState() {
+  const cur = snapshotAppState();
+  const diff = deepDiff(cur, DEFAULT_APP) || {};
+  const sp = new URLSearchParams(window.location.search);
+  if (Object.keys(diff).length === 0) {
+    sp.delete('cfg');
+  } else {
+    // Single-encode via URLSearchParams; store raw JSON
+    sp.set('cfg', JSON.stringify(diff));
+  }
+  const url = window.location.pathname + (sp.toString() ? ('?' + sp.toString()) : '');
+  window.history.replaceState({}, '', url);
+}
+function scheduleUpdateURL(){ if (suppressURL) return; if (urlTimer) clearTimeout(urlTimer); urlTimer=setTimeout(updateURLFromState, 200); }
+
+function applyConfigFromURL() {
+  const sp = new URLSearchParams(window.location.search);
+  const raw = sp.get('cfg');
+  if (!raw) { scheduleUpdateURL(); return; }
+  let diff = null;
+  // Prefer single-encoded read: parse raw JSON; if that fails, try one decode pass
+  try { diff = JSON.parse(raw); }
+  catch(e) {
+    try { diff = JSON.parse(decodeURIComponent(raw)); } catch { diff = null; }
+  }
+  if (!diff) { console.warn('Invalid cfg param'); scheduleUpdateURL(); return; }
+  // If multi-surface state
+  if (Array.isArray(diff.surfaces)) { setAppState(diff); scheduleUpdateURL(); return; }
+  // Backward-compat: single-surface
+  applyConfig(diff);
+  scheduleUpdateURL();
+}
 
 // Debounced URL update on any input/change inside the panel
 const panelEl = document.getElementById('overlay-panel');
@@ -632,6 +895,49 @@ function toLine2(bufferGeo, { style, color, alpha, width, depthTest=true, depthW
   const line = new Line2(geo, mat);
   if (!isSolid) line.computeLineDistances();
   return line;
+}
+
+// Rebuild vectors and UV paths for the active surface after geometry changes
+function rebuildVectorsAndUV(){
+  const cur = getActiveSurface(); if (!cur || !surfaceGroup || !surfaceState) return;
+  // Rebuild vectors
+  const vDash = parseFloat(document.getElementById('vecDash')?.value || '0.14');
+  const vGap = parseFloat(document.getElementById('vecGap')?.value || '0.06');
+  if (Array.isArray(cur.vectorItems)) {
+    for (const it of cur.vectorItems) { try{ it.obj?.parent?.remove(it.obj); it.cone?.parent?.remove(it.cone);}catch{} }
+    for (const it of cur.vectorItems) {
+      const a = new THREE.Vector3(it.sx, it.sy, it.sz);
+      const b = new THREE.Vector3(it.ex, it.ey, it.ez);
+      const positions = new Float32Array([ a.x,a.y,a.z, b.x,b.y,b.z ]);
+      const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(positions,3));
+      const matColor = new THREE.Color(it.color || '#000000');
+      const line = toLine2(geo, { style: it.style || 'solid', color: matColor, alpha: 1, width: it.width || 1.0, depthTest: true, dash: vDash, gap: vGap });
+      surfaceGroup.add(line);
+      // arrow head
+      const dir = new THREE.Vector3().subVectors(b, a); let cone=null; const len=dir.length();
+      if (len>1e-6){ dir.normalize(); const headLen=Math.max(0.02,0.06*len); const headRad=Math.max(0.01,0.02*len);
+        const coneGeo=new THREE.ConeGeometry(headRad, headLen, 12); const coneMat=new THREE.MeshStandardMaterial({ color: matColor.getHex(), emissive: 0x000000, roughness: 0.5, metalness: 0.0 });
+        cone=new THREE.Mesh(coneGeo, coneMat); cone.position.copy(b); cone.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), dir.clone().normalize()); cone.position.add(dir.clone().multiplyScalar(-headLen*0.5)); surfaceGroup.add(cone);
+      }
+      it.obj = line; it.cone = cone;
+    }
+  }
+  // Rebuild UV paths
+  const uDash = parseFloat(document.getElementById('uvDash')?.value || '0.14');
+  const uGap = parseFloat(document.getElementById('uvGap')?.value || '0.06');
+  if (Array.isArray(cur.uvItems)) {
+    for (const it of cur.uvItems) { try{ it.obj?.parent?.remove(it.obj);}catch{} }
+    for (const it of cur.uvItems) {
+      const segs = 200; const positions = new Float32Array(segs*3);
+      for (let i=0;i<segs;i++){ const t=i/(segs-1); const u=it.su*(1-t)+it.eu*t; const v=it.sv*(1-t)+it.ev*t; const p=sampleSurfaceAtUV(surfaceState,u,v); positions[i*3+0]=p.x; positions[i*3+1]=p.y; positions[i*3+2]=p.z; }
+      const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(positions,3));
+      const matColor = new THREE.Color(it.color || '#000000');
+      const line = toLine2(geo, { style: it.style || 'solid', color: matColor, alpha: 1, width: it.width || 1.0, depthTest: true, dash: uDash, gap: uGap });
+      makeLineClippable(line.material, surfaceState.mesh);
+      setLineClip(line.material, params.clip, params.scale);
+      surfaceGroup.add(line); it.obj = line;
+    }
+  }
 }
 
 // densify line positions to reduce sharp miter artifacts for thick solid lines
@@ -695,20 +1001,22 @@ function applyMaterialSettings() {
 
 // Build a vector arrow between two picked points (straight segment + cone head)
 function addVectorArrow(startInfo, endInfo){
+  const cur = getActiveSurface();
   const color = new THREE.Color(document.getElementById('vecColor').value);
   const width = parseFloat(document.getElementById('vecWidth').value);
   const style = document.getElementById('vecStyle').value;
   const dash = parseFloat(document.getElementById('vecDash')?.value || '0.14');
   const gap = parseFloat(document.getElementById('vecGap')?.value || '0.06');
-  const positions = new Float32Array([
-    startInfo.position.x, startInfo.position.y, startInfo.position.z,
-    endInfo.position.x, endInfo.position.y, endInfo.position.z,
-  ]);
+  const aW = startInfo.position.clone();
+  const bW = endInfo.position.clone();
+  const a = surfaceGroup ? surfaceGroup.worldToLocal(aW) : aW;
+  const b = surfaceGroup ? surfaceGroup.worldToLocal(bW) : bW;
+  const positions = new Float32Array([ a.x, a.y, a.z, b.x, b.y, b.z ]);
   const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(positions,3));
   const line = toLine2(geo, { style, color, alpha: 1, width, depthTest: true, dash, gap });
-  vectorGroup.add(line);
+  (surfaceGroup||scene).add(line);
   // Arrow head
-  const dir = new THREE.Vector3().subVectors(endInfo.position, startInfo.position);
+  const dir = new THREE.Vector3().subVectors(b, a);
   let cone = null;
   const len = dir.length(); if (len > 1e-6){
     dir.normalize();
@@ -717,19 +1025,23 @@ function addVectorArrow(startInfo, endInfo){
     const coneGeo = new THREE.ConeGeometry(headRad, headLen, 12);
     const coneMat = new THREE.MeshStandardMaterial({ color: color.getHex(), emissive: 0x000000, roughness: 0.5, metalness: 0.0 });
     cone = new THREE.Mesh(coneGeo, coneMat);
-    cone.position.copy(endInfo.position);
+    cone.position.copy(b);
     cone.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), dir.clone().normalize());
     cone.position.add(dir.clone().multiplyScalar(-headLen*0.5));
-    vectorGroup.add(cone);
+    (surfaceGroup||scene).add(cone);
   }
   // save for cfg
-  vectorItems.push({ sx: startInfo.position.x, sy: startInfo.position.y, sz: startInfo.position.z,
-                     ex: endInfo.position.x, ey: endInfo.position.y, ez: endInfo.position.z,
+  if (cur) { if (!cur.vectorItems) cur.vectorItems = []; }
+  const list = cur?.vectorItems || vectorItems;
+  list.push({ sx: a.x, sy: a.y, sz: a.z,
+                     ex: b.x, ey: b.y, ez: b.z,
                      color: '#' + color.getHexString(), width, style, obj: line, cone });
+  vectorItems = list;
 }
 
 // Build a path that follows straight line in UV and maps to surface
 function addUVLinePath(startInfo, endInfo){
+  const cur = getActiveSurface();
   const color = new THREE.Color(document.getElementById('uvColor').value);
   const width = parseFloat(document.getElementById('uvWidth').value);
   const style = document.getElementById('uvStyle').value;
@@ -748,9 +1060,12 @@ function addUVLinePath(startInfo, endInfo){
   const line = toLine2(geo, { style, color, alpha: 1, width, depthTest: true, dash, gap });
   makeLineClippable(line.material, surfaceState.mesh);
   setLineClip(line.material, params.clip, params.scale);
-  uvPathGroup.add(line);
-  uvItems.push({ su: startInfo.uv.x, sv: startInfo.uv.y, eu: endInfo.uv.x, ev: endInfo.uv.y,
+  (surfaceGroup||scene).add(line);
+  if (cur) { if (!cur.uvItems) cur.uvItems = []; }
+  const list = cur?.uvItems || uvItems;
+  list.push({ su: startInfo.uv.x, sv: startInfo.uv.y, eu: endInfo.uv.x, ev: endInfo.uv.y,
                  color: '#' + color.getHexString(), width, style, obj: line });
+  uvItems = list;
 }
 
 function randomizeCurrentPreset() {
@@ -779,8 +1094,9 @@ function randomizeCurrentPreset() {
 
 // Rebuild boundary (closed) lines for the current domain or mask
 function rebuildBoundaryLines() {
-  clipLinesGroup.clear();
-  if (!surfaceState) return;
+  if (!surfaceGroup || !surfaceState) return;
+  if (!surfaceGroup._outlineGroup) { surfaceGroup._outlineGroup = new THREE.Group(); surfaceGroup.add(surfaceGroup._outlineGroup); }
+  const container = surfaceGroup._outlineGroup; container.clear();
   if (!document.getElementById('clipLinesEnable').checked) return;
   const style = document.getElementById('clipStyle').value;
   const color = new THREE.Color(document.getElementById('clipColor').value);
@@ -799,13 +1115,13 @@ function rebuildBoundaryLines() {
   for (const g of boundaryGeos) {
     // Occluding outline: depthTest on, slight positive polygonOffset to reduce z-fighting
     const line = toLine2(g, { style, color, alpha, width, depthTest: true, dash, gap, depthWrite: false, zOffset: 1 });
-    clipLinesGroup.add(line);
+    container.add(line);
   }
 }
 
-// Take a snapshot of current UI state and params
+// Take a snapshot of current UI state and params (for active surface)
 function snapshotConfig() {
-  const cfg = { preset: params.type, resU: params.resU, resV: params.resV, scale: params.scale,
+  const cfg = { preset: params.type, resU: params.resU, resV: params.resV, scale: params.scale, location: (surfaceGroup? { x: surfaceGroup.position.x, y: surfaceGroup.position.y, z: surfaceGroup.position.z } : {x:0,y:0,z:0}),
     presetParams: {}, wireframe: !!document.getElementById('wireframe').checked,
     camera: { pos: [camera.position.x, camera.position.y, camera.position.z], target: [controls.target.x, controls.target.y, controls.target.z], fov: camera.fov },
     mask: {
@@ -855,7 +1171,7 @@ function snapshotConfig() {
       alpha: parseFloat(document.getElementById('markerAlpha').value),
       outline: parseFloat(document.getElementById('markerOutline')?.value || '3'),
       outlineColor: document.getElementById('markerOutlineColor')?.value || '#ffffff',
-      items: markerLayer.markers.map(m => ({ x: m.position.x, y: m.position.y, z: m.position.z, shape: m.shape || 'circle', size: m.size, color: m.color, alpha: m.alpha, outline: m.outline, outlineColor: m.outlineColor }))
+      items: ((typeof getActiveSurface==='function') && getActiveSurface()?.markerItems) || []
     }
     ,lighting: {
       amb: parseFloat(document.getElementById('ambIntensity')?.value || '0.6'),
@@ -908,33 +1224,18 @@ function deepDiff(cur, def) {
   }
 }
 
-function updateURLFromState() {
-  const cur = snapshotConfig();
-  const diff = deepDiff(cur, DEFAULTS) || {};
-  const sp = new URLSearchParams(window.location.search);
-  if (Object.keys(diff).length === 0) {
-    sp.delete('cfg');
-  } else {
-    sp.set('cfg', encodeURIComponent(JSON.stringify(diff)));
-  }
-  const url = window.location.pathname + (sp.toString() ? ('?' + sp.toString()) : '');
-  window.history.replaceState({}, '', url);
-}
-function scheduleUpdateURL(){ if (urlTimer) clearTimeout(urlTimer); urlTimer=setTimeout(updateURLFromState, 200); }
-
-function applyConfigFromURL() {
-  const sp = new URLSearchParams(window.location.search);
-  const raw = sp.get('cfg'); if (!raw) return;
-  let s = raw; let diff = null;
-  for (let i=0;i<3;i++) {
-    try { diff = JSON.parse(s); break; } catch(e) { try { s = decodeURIComponent(s); } catch { break; } }
-  }
-  if (!diff) { console.warn('Invalid cfg param'); return; }
-  applyConfig(diff);
-}
+// (moved) updateURLFromState / scheduleUpdateURL / applyConfigFromURL are defined earlier for multi-surface state.
 
 function applyConfig(diff) {
   if (!diff || typeof diff !== 'object') return;
+  // Location (surface offset)
+  if (diff.location) {
+    const l = diff.location; const sx = Number(l.x ?? 0), sy = Number(l.y ?? 0), sz = Number(l.z ?? 0);
+    const ox = document.getElementById('offsetX'); const oy = document.getElementById('offsetY'); const oz = document.getElementById('offsetZ');
+    if (ox) ox.value = String(sx); if (oy) oy.value = String(sy); if (oz) oz.value = String(sz);
+    const cur = (typeof getActiveSurface==='function') ? getActiveSurface() : null; if (cur) cur.offset = { x:sx, y:sy, z:sz };
+    updateOffsetLabels();
+  }
   // Preset first
   if (diff.preset && diff.preset !== params.type) { document.getElementById('preset').value = diff.preset; setPreset(diff.preset); }
   if (diff.resU) { document.getElementById('resU').value = diff.resU; params.resU = diff.resU; }
@@ -1050,6 +1351,11 @@ function applyConfig(diff) {
   rebuildBoundaryLines();
   applyRendererSettings();
   applyMaterialSettings();
+  // Finally, apply the current surface offset to the newly built mesh
+  const curS = (typeof getActiveSurface==='function') ? getActiveSurface() : null;
+  if (surfaceGroup && curS && curS.offset) {
+    surfaceGroup.position.set(curS.offset.x||0, curS.offset.y||0, curS.offset.z||0);
+  }
 
   // Restore vectors/uvpaths
   if (diff.vectors) {
@@ -1058,14 +1364,21 @@ function applyConfig(diff) {
     if (diff.vectors.style) document.getElementById('vecStyle').value = (diff.vectors.style==='solid'?'solid':'pattern');
     if (diff.vectors.dash!=null) document.getElementById('vecDash').value = diff.vectors.dash;
     if (diff.vectors.gap!=null) document.getElementById('vecGap').value = diff.vectors.gap;
-    vectorGroup.clear(); vectorItems = [];
+    const curSurf = (typeof getActiveSurface==='function') ? getActiveSurface() : null;
+    if (curSurf && Array.isArray(curSurf.vectorItems)) { curSurf.vectorItems.forEach(it=>{ try{ it.obj?.parent?.remove(it.obj); it.cone?.parent?.remove(it.cone);}catch{} }); curSurf.vectorItems = []; }
+    vectorItems = (curSurf && curSurf.vectorItems) ? curSurf.vectorItems : [];
     if (Array.isArray(diff.vectors.items)) {
       for (const it of diff.vectors.items) {
         if (it.color) document.getElementById('vecColor').value = it.color;
         if (it.width!=null) document.getElementById('vecWidth').value = it.width;
         if (it.style) document.getElementById('vecStyle').value = it.style;
-        const a = { position: new THREE.Vector3(it.sx, it.sy, it.sz), uv: new THREE.Vector2() };
-        const b = { position: new THREE.Vector3(it.ex, it.ey, it.ez), uv: new THREE.Vector2() };
+        // items store local coordinates; convert to world for addVectorArrow()
+        const aL = new THREE.Vector3(it.sx, it.sy, it.sz);
+        const bL = new THREE.Vector3(it.ex, it.ey, it.ez);
+        const aW = surfaceGroup ? surfaceGroup.localToWorld(aL.clone()) : aL;
+        const bW = surfaceGroup ? surfaceGroup.localToWorld(bL.clone()) : bL;
+        const a = { position: aW, uv: new THREE.Vector2() };
+        const b = { position: bW, uv: new THREE.Vector2() };
         addVectorArrow(a,b);
       }
       // restore UI to cfg defaults
@@ -1080,7 +1393,9 @@ function applyConfig(diff) {
     if (diff.uvpaths.style) document.getElementById('uvStyle').value = (diff.uvpaths.style==='solid'?'solid':'pattern');
     if (diff.uvpaths.dash!=null) document.getElementById('uvDash').value = diff.uvpaths.dash;
     if (diff.uvpaths.gap!=null) document.getElementById('uvGap').value = diff.uvpaths.gap;
-    uvPathGroup.clear(); uvItems = [];
+    const curSurf2 = (typeof getActiveSurface==='function') ? getActiveSurface() : null;
+    if (curSurf2 && Array.isArray(curSurf2.uvItems)) { curSurf2.uvItems.forEach(it=>{ try{ it.obj?.parent?.remove(it.obj);}catch{} }); curSurf2.uvItems = []; }
+    uvItems = (curSurf2 && curSurf2.uvItems) ? curSurf2.uvItems : [];
     if (Array.isArray(diff.uvpaths.items)) {
       for (const it of diff.uvpaths.items) {
         if (it.color) document.getElementById('uvColor').value = it.color;
@@ -1096,3 +1411,25 @@ function applyConfig(diff) {
     }
   }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

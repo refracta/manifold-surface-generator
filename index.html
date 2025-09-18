@@ -20,6 +20,18 @@
       <div id="canvas-container"></div>
       <div id="overlay-panel" class="panel">
         <h3>Manifold Surface Generator</h3>
+        <div class="surface-manager">
+          <div class="row">
+            <label>Surface</label>
+            <select id="surfaceSelect"></select>
+            <button id="addSurface">Add</button>
+            <button id="removeSurface">Remove</button>
+          </div>
+          <div class="row">
+            <label>Name</label>
+            <input id="surfaceName" type="text" placeholder="Surface name" />
+          </div>
+        </div>
         <details open>
           <summary>Surface</summary>
           <div class="row">
@@ -117,14 +129,26 @@
         </details>
 
         <details open>
-          <summary>Colors</summary>
+          <summary>Location</summary>
           <div class="row">
-            <label>Background</label>
-            <input id="bgColor" type="color" value="#f5f5f8" />
-            <span style="flex:1"></span>
-            <label style="width:70px">Alpha</label>
-            <input id="bgAlpha" type="range" min="0" max="1" step="0.01" value="1" />
+            <label>Offset X</label>
+            <input id="offsetX" type="range" min="-3" max="3" step="0.05" value="0" />
+            <span class="val" id="offsetXVal">0.00</span>
           </div>
+          <div class="row">
+            <label>Offset Y</label>
+            <input id="offsetY" type="range" min="-3" max="3" step="0.05" value="0" />
+            <span class="val" id="offsetYVal">0.00</span>
+          </div>
+          <div class="row">
+            <label>Offset Z</label>
+            <input id="offsetZ" type="range" min="-3" max="3" step="0.05" value="0" />
+            <span class="val" id="offsetZVal">0.00</span>
+          </div>
+        </details>
+
+        <details open>
+          <summary>Colors</summary>
           <div class="row">
             <label>Color Mode</label>
             <select id="colorMode">
@@ -349,12 +373,25 @@
         </details>
 
         <details open>
+          <summary>Background</summary>
+          <div class="row">
+            <label>Background</label>
+            <input id="bgColor" type="color" value="#f5f5f8" />
+            <span style="flex:1"></span>
+            <label style="width:70px">Alpha</label>
+            <input id="bgAlpha" type="range" min="0" max="1" step="0.01" value="1" />
+          </div>
+        </details>
+
+        <details open>
           <summary>Export</summary>
           <div class="row">
             <button id="savePng">Save PNG</button>
+          </div>
+          <div class="row" style="height:6px;"></div>
+          <div class="row">
             <button id="exportGLB">Export GLB</button>
             <button id="exportOBJ">Export OBJ</button>
-            <button id="resetCamera">Reset Camera</button>
           </div>
           <div class="row">
             <label>Use AutoCrop</label>
@@ -367,6 +404,7 @@
         </details>
         <div class="row" style="margin-top:8px;justify-content:flex-end;">
           <button id="resetAll">Reset All</button>
+          <button id="resetCamera">Reset Camera</button>
         </div>
       </div>
       <div id="marker-layer" class="marker-layer"></div>
