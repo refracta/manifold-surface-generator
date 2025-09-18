@@ -183,10 +183,17 @@ function updateBackground() {
 }
 document.getElementById('bgColor').addEventListener('input', updateBackground);
 document.getElementById('bgAlpha').addEventListener('input', updateBackground);
+function refreshColorModeUI(){
+  const modeSel = document.getElementById('colorMode');
+  if (!modeSel) return;
+  const solid = modeSel.value === 'solid';
+  const solidRow = document.getElementById('solidRow');
+  const gradEd = document.getElementById('gradientEditor');
+  if (solidRow) solidRow.style.display = solid ? 'flex' : 'none';
+  if (gradEd) gradEd.style.display = solid ? 'none' : 'flex';
+}
 document.getElementById('colorMode').addEventListener('change', (e) => {
-  const solid = e.target.value === 'solid';
-  document.getElementById('solidRow').style.display = solid ? 'flex' : 'none';
-  document.getElementById('gradientEditor').style.display = solid ? 'none' : 'flex';
+  refreshColorModeUI();
   updateColors();
 });
 document.getElementById('solidColor').addEventListener('input', updateColors);
@@ -1563,7 +1570,7 @@ function applyConfig(diff) {
     const c = diff.colors;
     if (c.bg) document.getElementById('bgColor').value = c.bg;
     if (c.bgA!=null) document.getElementById('bgAlpha').value = c.bgA;
-    if (c.mode) document.getElementById('colorMode').value = c.mode;
+    if (c.mode) { document.getElementById('colorMode').value = c.mode; refreshColorModeUI(); }
     if (c.solid) document.getElementById('solidColor').value = c.solid;
     if (c.opacity!=null) document.getElementById('surfaceOpacity').value = c.opacity;
     if (c.axis) document.getElementById('gradAxis').value = c.axis;
