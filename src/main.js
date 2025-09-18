@@ -803,6 +803,11 @@ window.addEventListener('keydown', async (e)=>{
     document.getElementById('uvPickStart')?.click();
     return;
   }
+  if (e.code==='KeyO') {
+    e.preventDefault();
+    document.getElementById('resetCamera')?.click();
+    return;
+  }
   // Camera WASD + Space(Up)/Shift(Down)
   switch (e.code) {
     case 'KeyW': camMove.forward = true; e.preventDefault(); break;
