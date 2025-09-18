@@ -758,25 +758,31 @@ function snapshotAppState(){
   // Global background and renderer/tone mapping + shading strength
   const background = { bg: document.getElementById('bgColor').value, bgA: parseFloat(document.getElementById('bgAlpha').value) };
   const render = { toneMapping: document.getElementById('toneMapping')?.value || 'none', exposure: parseFloat(document.getElementById('exposure')?.value || '1'), shadingStrength: parseFloat(document.getElementById('shadingStrength')?.value || '1') };
-  const arr = surfaces.map(s => ({ id: s.id, name: s.name,
-    config: (function(){
-      const oldParams = params; const oldActive = activeSurfaceId; const oldVec = vectorItems; const oldUV = uvItems;
-      let cfg;
-      try { activeSurfaceId = s.id; params = s.params; vectorItems = s.vectorItems || []; uvItems = s.uvItems || []; cfg = snapshotConfig(); }
-      catch(e){ cfg = s.savedConfig || DEFAULTS; }
-      finally { params = oldParams; activeSurfaceId = oldActive; vectorItems = oldVec; uvItems = oldUV; }
-      // Ensure location reflects this surface entry's offset, not the current active group's transform
-      if (!cfg) cfg = {};
-      const off = s.offset || { x:0, y:0, z:0 };
-      cfg.location = { x: Number(off.x||0), y: Number(off.y||0), z: Number(off.z||0) };
-      // Remove global fields from per-surface configs to prevent switching side-effects
-      if (cfg.camera) delete cfg.camera;
-      if (cfg.colors) {
-        delete cfg.colors.bg; delete cfg.colors.bgA;
-        delete cfg.colors.toneMapping; delete cfg.colors.exposure; delete cfg.colors.shadingStrength;
-      }
-      return cfg;
-    })() }));
+  const arr = surfaces.map(s => {
+    let cfg;
+    if (s.id === activeSurfaceId) {
+      // Active surface: capture from current UI/state
+      cfg = snapshotConfig();
+    } else {
+      // Non-active: use stored config to avoid polluting with current UI
+      cfg = JSON.parse(JSON.stringify(s.savedConfig || DEFAULTS));
+      // Ensure vectors/uv/markers reflect live runtime lists
+      cfg.vectors = cfg.vectors || {};
+      cfg.vectors.items = (s.vectorItems||[]).map(it=>({ sx:it.sx,sy:it.sy,sz:it.sz, ex:it.ex,ey:it.ey,ez:it.ez, color:it.color, width:it.width, style:it.style }));
+      cfg.uvpaths = cfg.uvpaths || {};
+      cfg.uvpaths.items = (s.uvItems||[]).map(it=>({ su:it.su,sv:it.sv, eu:it.eu,ev:it.ev, color:it.color, width:it.width, style:it.style }));
+      cfg.markers = cfg.markers || {};
+      cfg.markers.items = (s.markerItems||[]).map(m=>({ x:m.x,y:m.y,z:m.z, shape:m.shape,size:m.size,color:m.color,alpha:m.alpha,outline:m.outline,outlineColor:m.outlineColor }));
+    }
+    if (!cfg) cfg = {};
+    // Ensure absolute location from entry offset
+    const off = s.offset || { x:0, y:0, z:0 };
+    cfg.location = { x: Number(off.x||0), y: Number(off.y||0), z: Number(off.z||0) };
+    // Remove global fields from per-surface configs to prevent switching side-effects
+    if (cfg.camera) delete cfg.camera;
+    if (cfg.colors) { delete cfg.colors.bg; delete cfg.colors.bgA; delete cfg.colors.toneMapping; delete cfg.colors.exposure; delete cfg.colors.shadingStrength; }
+    return { id: s.id, name: s.name, config: cfg };
+  });
   return { active, camera: cam, background, render, surfaces: arr };
 }
 
