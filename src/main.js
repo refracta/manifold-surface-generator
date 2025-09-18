@@ -395,7 +395,7 @@ const pointer = new THREE.Vector2();
 let isDown = false, moved = false, downX = 0, downY = 0;
 const CLICK_MOVE_THRESH = 6; // px
 
-// Surface rotate (Shift + drag on a surface)
+// Surface rotate (Ctrl + drag on a surface)
 let isRotatingSurface = false;
 let rotateTarget = null; // THREE.Group (surfaceGroup)
 let rotateEntry = null; // surfaces[] entry
@@ -422,8 +422,8 @@ function refreshLineClipMatrices(group){
 renderer.domElement.addEventListener('pointerdown', (ev) => {
   if (ev.button !== 0) return; // left only
   isDown = true; moved = false; downX = ev.clientX; downY = ev.clientY;
-  // Start rotate if Shift is held and a surface is hit
-  if (ev.shiftKey) {
+  // Start rotate if Ctrl is held and a surface is hit
+  if (ev.ctrlKey) {
     const rect = renderer.domElement.getBoundingClientRect();
     pointer.x = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
     pointer.y = -((ev.clientY - rect.top) / rect.height) * 2 + 1;
