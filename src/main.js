@@ -544,7 +544,7 @@ window.addEventListener('resize', () => {
 });
 
 // Export helpers
-function savePNG(scale=1) {
+async function renderPNGToBlob(scale=1, autoCrop=true){
   scale = Math.max(1, Math.min(8, isNaN(scale)?1:scale));
   const canvas = renderer.domElement;
   const w = canvas.clientWidth, h = canvas.clientHeight;
@@ -554,12 +554,10 @@ function savePNG(scale=1) {
   // Upscale render
   renderer.setPixelRatio(1);
   renderer.setSize(w*scale, h*scale, false);
-  // Update fat line materials resolution
   setLineResolutions(w*scale, h*scale);
   renderer.render(scene, camera);
 
-  const autoCrop = document.getElementById('pngAutoCrop')?.checked ?? true;
-  let data;
+  let dataURL;
   let finalW = w*scale, finalH = h*scale;
   if (autoCrop) {
     const tempCanvas = document.createElement('canvas'); tempCanvas.width = w*scale; tempCanvas.height = h*scale;
@@ -574,12 +572,12 @@ function savePNG(scale=1) {
       cropCanvas.width = finalW; cropCanvas.height = finalH;
       const cropCtx = cropCanvas.getContext('2d');
       cropCtx.putImageData(imgData, -bounds.left, -bounds.top);
-      data = cropCanvas.toDataURL('image/png');
+      dataURL = cropCanvas.toDataURL('image/png');
     } else {
-      data = tempCanvas.toDataURL('image/png');
+      dataURL = tempCanvas.toDataURL('image/png');
     }
   } else {
-    data = renderer.domElement.toDataURL('image/png');
+    dataURL = renderer.domElement.toDataURL('image/png');
   }
 
   // Restore
@@ -588,7 +586,32 @@ function savePNG(scale=1) {
   setLineResolutions(oldSize.x, oldSize.y);
   renderOnce();
 
-  const a = document.createElement('a'); a.href = data; a.download = `manifold_${finalW}x${finalH}.png`; a.click();
+  // Convert dataURL to Blob
+  const res = await fetch(dataURL);
+  const blob = await res.blob();
+  return { blob, width: finalW, height: finalH };
+}
+
+async function savePNG(scale=1) {
+  const autoCrop = document.getElementById('pngAutoCrop')?.checked ?? true;
+  const { blob, width, height } = await renderPNGToBlob(scale, autoCrop);
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `manifold_${width}x${height}.png`; a.click();
+}
+
+async function copyPNGToClipboard(scale=1){
+  const autoCrop = document.getElementById('pngAutoCrop')?.checked ?? true;
+  try {
+    const { blob } = await renderPNGToBlob(scale, autoCrop);
+    if (navigator.clipboard && window.ClipboardItem) {
+      await navigator.clipboard.write([ new ClipboardItem({ 'image/png': blob }) ]);
+      showToast('PNG copied to clipboard');
+    } else {
+      showToast('Clipboard not available');
+    }
+  } catch (e) {
+    console.warn('Copy PNG failed', e);
+    showToast('Copy failed');
+  }
 }
 
 function setLineResolutions(w,h){
@@ -717,6 +740,42 @@ addStopRow(1, '#ff9aa2');
 document.getElementById('bgAlpha').value = '1';
 updateBackground();
 
+// Keyboard shortcuts
+function isTypingTarget(t){ return t && (t.tagName==='INPUT' || t.tagName==='TEXTAREA' || t.tagName==='SELECT' || t.isContentEditable); }
+window.addEventListener('keydown', async (e)=>{
+  if (isTypingTarget(e.target)) return;
+  // Ctrl+C: copy PNG to clipboard using current PNG scale/autocrop
+  if (e.ctrlKey && !e.shiftKey && !e.altKey && e.code==='KeyC') {
+    e.preventDefault();
+    const scale = parseFloat(document.getElementById('pngScale')?.value || '1');
+    await copyPNGToClipboard(scale);
+    return;
+  }
+  // Ctrl+G: navigate to GitHub Pages with same query
+  if (e.ctrlKey && !e.shiftKey && !e.altKey && e.code==='KeyG') {
+    e.preventDefault();
+    const qs = window.location.search || '';
+    window.location.href = 'https://refracta.github.io/manifold-surface-generator/' + (qs || '');
+    return;
+  }
+  if (e.ctrlKey || e.metaKey || e.altKey) return; // single keys below
+  if (e.code==='KeyR') {
+    e.preventDefault();
+    document.getElementById('resetAll')?.click();
+    return;
+  }
+  if (e.code==='KeyV') {
+    e.preventDefault();
+    document.getElementById('vecPickStart')?.click();
+    return;
+  }
+  if (e.code==='KeyU') {
+    e.preventDefault();
+    document.getElementById('uvPickStart')?.click();
+    return;
+  }
+});
+
 // -------- Multi-surface: minimal manager (render all meshes; edit active) --------
 function getSurface(id) { return surfaces.find(s => s.id === id); }
 function getActiveSurface() { return getSurface(activeSurfaceId); }
@@ -727,6 +786,16 @@ function createSurfaceEntry(baseParams, name) {
   const entry = { id, name: name || `Surface ${surfaces.length + 1}`, params: p, savedConfig: null, offset: { x:0, y:0, z:0 }, rot: { x:0, y:0, z:0 } };
   surfaces.push(entry);
   return entry;
+}
+
+// Toast helper
+function showToast(msg){
+  let el = document.getElementById('toast');
+  if (!el){ el = document.createElement('div'); el.id='toast'; el.className='toast'; document.body.appendChild(el); }
+  el.textContent = msg || '';
+  el.classList.add('show');
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(()=> el.classList.remove('show'), 1400);
 }
 
 function bindActive(entry) {
