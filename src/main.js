@@ -677,7 +677,7 @@ function saveActive() {
 
 function setActiveSurface(id, opts={}){
   if (activeSurfaceId === id) return;
-  if (activeSurfaceId) saveActive();
+  if (activeSurfaceId && !opts.silent) saveActive();
   const entry = getSurface(id); if (!entry) return;
   activeSurfaceId = id;
   bindActive(entry);
@@ -827,10 +827,12 @@ function setAppState(state){
   const cur = activeSurfaceId;
   for (const s of surfaces){
     setActiveSurface(s.id, { silent: true });
-    if (s.savedConfig) applyConfig(s.savedConfig);
-    regenerateSurface();
-    // ensure offset is applied on the created mesh
-    if (s.surfaceGroup && s.offset) s.surfaceGroup.position.set(s.offset.x, s.offset.y, s.offset.z);
+    if (s.savedConfig) {
+      applyConfig(s.savedConfig); // includes regenerateSurface + coloring + offset apply
+    } else {
+      regenerateSurface();
+      if (s.surfaceGroup && s.offset) s.surfaceGroup.position.set(s.offset.x, s.offset.y, s.offset.z);
+    }
   }
   setActiveSurface(cur, { silent: true });
   // Apply global camera/background/renderer once
