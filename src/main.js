@@ -428,6 +428,26 @@ function refreshLineClipMatrices(group){
 }
 
 renderer.domElement.addEventListener('pointerdown', (ev) => {
+  // Ctrl + Middle click: reset surface rotation
+  if (ev.ctrlKey && ev.button === 1) {
+    ev.preventDefault();
+    const rect = renderer.domElement.getBoundingClientRect();
+    pointer.x = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
+    pointer.y = -((ev.clientY - rect.top) / rect.height) * 2 + 1;
+    raycaster.setFromCamera(pointer, camera);
+    const hits = raycaster.intersectObjects(scene.children, true);
+    const hit = (hits && hits[0]);
+    if (hit && hit.object) {
+      const info = findSurfaceGroupFromObject(hit.object);
+      if (info && info.group && info.entry) {
+        info.group.rotation.set(0,0,0);
+        info.entry.rot = { x:0, y:0, z:0 };
+        refreshLineClipMatrices(info.group);
+        scheduleUpdateURL();
+      }
+    }
+    return;
+  }
   if (ev.button !== 0) return; // left only
   isDown = true; moved = false; downX = ev.clientX; downY = ev.clientY;
   // Start rotate if Ctrl is held and a surface is hit
