@@ -67,6 +67,7 @@ function regenerateSurface() {
   if (entry && entry.surfaceGroup) { try { scene.remove(entry.surfaceGroup); } catch {}
   }
   const { group, state } = buildSurface(params);
+  group.userData.isSurfaceGroup = true;
   if (entry) entry.surfaceGroup = group;
   surfaceGroup = group;
   surfaceState = state;
@@ -74,6 +75,10 @@ function regenerateSurface() {
   // Re-apply absolute offset for the active surface so changes (e.g., scale) don't reset to origin
   if (entry && entry.offset) {
     surfaceGroup.position.set(Number(entry.offset.x||0), Number(entry.offset.y||0), Number(entry.offset.z||0));
+  }
+  // Re-apply saved rotation if any
+  if (entry && entry.rot) {
+    surfaceGroup.rotation.set(Number(entry.rot.x||0), Number(entry.rot.y||0), Number(entry.rot.z||0));
   }
   // overlay groups are per-surface (_geoGroup/_outlineGroup). Vectors/UV paths attach on creation.
   updateClip();
@@ -390,13 +395,66 @@ const pointer = new THREE.Vector2();
 let isDown = false, moved = false, downX = 0, downY = 0;
 const CLICK_MOVE_THRESH = 6; // px
 
+// Surface rotate (Shift + drag on a surface)
+let isRotatingSurface = false;
+let rotateTarget = null; // THREE.Group (surfaceGroup)
+let rotateEntry = null; // surfaces[] entry
+let rotStartX = 0, rotStartY = 0;
+let rotStartRX = 0, rotStartRY = 0, rotStartRZ = 0;
+
+function findSurfaceGroupFromObject(obj){
+  let g = obj;
+  while (g && !g.userData?.isSurfaceGroup) g = g.parent;
+  if (!g) return null;
+  const entry = surfaces.find(s=>s.surfaceGroup===g);
+  return entry ? { group:g, entry } : null;
+}
+
+function refreshLineClipMatrices(group){
+  if (!group) return;
+  group.updateWorldMatrix(true,false);
+  group.traverse(o=>{
+    const u = o?.material?.userData?.clipUniforms;
+    if (u && u.uSurfaceMatrixInv) { u.uSurfaceMatrixInv.value.copy(group.matrixWorld).invert(); }
+  });
+}
+
 renderer.domElement.addEventListener('pointerdown', (ev) => {
   if (ev.button !== 0) return; // left only
   isDown = true; moved = false; downX = ev.clientX; downY = ev.clientY;
+  // Start rotate if Shift is held and a surface is hit
+  if (ev.shiftKey) {
+    const rect = renderer.domElement.getBoundingClientRect();
+    pointer.x = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
+    pointer.y = -((ev.clientY - rect.top) / rect.height) * 2 + 1;
+    raycaster.setFromCamera(pointer, camera);
+    const hits = raycaster.intersectObjects(scene.children, true);
+    const hit = (hits && hits[0]);
+    if (hit && hit.object) {
+      const info = findSurfaceGroupFromObject(hit.object);
+      if (info && info.group) {
+        isRotatingSurface = true;
+        rotateTarget = info.group; rotateEntry = info.entry;
+        rotStartX = ev.clientX; rotStartY = ev.clientY;
+        rotStartRX = rotateTarget.rotation.x; rotStartRY = rotateTarget.rotation.y; rotStartRZ = rotateTarget.rotation.z;
+        controls.enabled = false;
+      }
+    }
+  }
 });
 
 renderer.domElement.addEventListener('pointermove', (ev) => {
   if (!isDown) return;
+  if (isRotatingSurface && rotateTarget) {
+    const dx = ev.clientX - rotStartX; const dy = ev.clientY - rotStartY;
+    const k = 0.01; // radians per pixel
+    rotateTarget.rotation.y = rotStartRY + dx * k;
+    rotateTarget.rotation.x = rotStartRX + dy * k;
+    moved = true;
+    refreshLineClipMatrices(rotateTarget);
+    renderOnce();
+    return;
+  }
   const dx = ev.clientX - downX, dy = ev.clientY - downY;
   if (Math.hypot(dx, dy) > CLICK_MOVE_THRESH) moved = true;
 });
@@ -405,6 +463,18 @@ renderer.domElement.addEventListener('pointerup', (ev) => {
   if (ev.button !== 0) return; // left only
   const wasClick = isDown && !moved;
   isDown = false; moved = false;
+  if (isRotatingSurface) {
+    controls.enabled = true;
+    isRotatingSurface = false;
+    if (rotateEntry && rotateTarget) {
+      // persist rotation into entry and URL
+      rotateEntry.rot = { x: rotateTarget.rotation.x, y: rotateTarget.rotation.y, z: rotateTarget.rotation.z };
+      refreshLineClipMatrices(rotateTarget);
+      scheduleUpdateURL();
+    }
+    rotateTarget = null; rotateEntry = null;
+    return; // do not treat as click
+  }
   if (!wasClick) return; // ignore drags
 
   const rect = renderer.domElement.getBoundingClientRect();
@@ -654,7 +724,7 @@ function getActiveSurface() { return getSurface(activeSurfaceId); }
 function createSurfaceEntry(baseParams, name) {
   const id = `surface_${surfaceIdCounter++}`;
   const p = baseParams ? JSON.parse(JSON.stringify(baseParams)) : createSurfaceParams('ripple');
-  const entry = { id, name: name || `Surface ${surfaces.length + 1}`, params: p, savedConfig: null, offset: { x:0, y:0, z:0 } };
+  const entry = { id, name: name || `Surface ${surfaces.length + 1}`, params: p, savedConfig: null, offset: { x:0, y:0, z:0 }, rot: { x:0, y:0, z:0 } };
   surfaces.push(entry);
   return entry;
 }
@@ -782,9 +852,11 @@ function snapshotAppState(){
       cfg.markers.items = (s.markerItems||[]).map(m=>({ x:m.x,y:m.y,z:m.z, shape:m.shape,size:m.size,color:m.color,alpha:m.alpha,outline:m.outline,outlineColor:m.outlineColor }));
     }
     if (!cfg) cfg = {};
-    // Ensure absolute location from entry offset
+    // Ensure absolute location/rotation from entry
     const off = s.offset || { x:0, y:0, z:0 };
     cfg.location = { x: Number(off.x||0), y: Number(off.y||0), z: Number(off.z||0) };
+    const rt = s.rot || { x:0, y:0, z:0 };
+    cfg.rotation = { x: Number(rt.x||0), y: Number(rt.y||0), z: Number(rt.z||0) };
     // Remove global fields from per-surface configs to prevent switching side-effects
     if (cfg.camera) delete cfg.camera;
     if (cfg.colors) { delete cfg.colors.bg; delete cfg.colors.bgA; delete cfg.colors.toneMapping; delete cfg.colors.exposure; delete cfg.colors.shadingStrength; }
@@ -828,10 +900,11 @@ function setAppState(state){
   for (const s of surfaces){
     setActiveSurface(s.id, { silent: true });
     if (s.savedConfig) {
-      applyConfig(s.savedConfig); // includes regenerateSurface + coloring + offset apply
+      applyConfig(s.savedConfig); // includes regenerateSurface + coloring + offset/rotation apply
     } else {
       regenerateSurface();
       if (s.surfaceGroup && s.offset) s.surfaceGroup.position.set(s.offset.x, s.offset.y, s.offset.z);
+      if (s.surfaceGroup && s.rot) s.surfaceGroup.rotation.set(s.rot.x||0, s.rot.y||0, s.rot.z||0);
     }
   }
   setActiveSurface(cur, { silent: true });
@@ -1291,6 +1364,11 @@ function applyConfig(diff) {
     const cur = (typeof getActiveSurface==='function') ? getActiveSurface() : null; if (cur) cur.offset = { x:sx, y:sy, z:sz };
     updateOffsetLabels();
   }
+  // Rotation (surface orientation)
+  if (diff.rotation) {
+    const r = diff.rotation; const rx = Number(r.x ?? 0), ry = Number(r.y ?? 0), rz = Number(r.z ?? 0);
+    const cur = (typeof getActiveSurface==='function') ? getActiveSurface() : null; if (cur) cur.rot = { x:rx, y:ry, z:rz };
+  }
   // Preset first
   if (diff.preset && diff.preset !== params.type) { document.getElementById('preset').value = diff.preset; setPreset(diff.preset); }
   if (diff.resU) { document.getElementById('resU').value = diff.resU; params.resU = diff.resU; }
@@ -1410,6 +1488,9 @@ function applyConfig(diff) {
   const curS = (typeof getActiveSurface==='function') ? getActiveSurface() : null;
   if (surfaceGroup && curS && curS.offset) {
     surfaceGroup.position.set(curS.offset.x||0, curS.offset.y||0, curS.offset.z||0);
+  }
+  if (surfaceGroup && curS && curS.rot) {
+    surfaceGroup.rotation.set(curS.rot.x||0, curS.rot.y||0, curS.rot.z||0);
   }
 
   // Restore vectors/uvpaths
