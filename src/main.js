@@ -318,6 +318,8 @@ document.getElementById('savePng').onclick = () => savePNG(parseFloat(document.g
 document.getElementById('exportGLB').onclick = () => exportGLB(surfaceGroup);
 document.getElementById('exportOBJ').onclick = () => exportOBJ(surfaceGroup);
 document.getElementById('resetCamera').onclick = () => { camera.position.copy(defaultCamPos); controls.target.set(0,0,0); controls.update(); };
+document.getElementById('pngAutoCrop')?.addEventListener('change', scheduleUpdateURL);
+
 document.getElementById('resetAll').onclick = () => {
   markerLayer.clear();
   camera.position.copy(defaultCamPos);
@@ -426,7 +428,30 @@ function savePNG(scale=1) {
   // Update fat line materials resolution
   setLineResolutions(w*scale, h*scale);
   renderer.render(scene, camera);
-  const data = renderer.domElement.toDataURL('image/png');
+
+  const autoCrop = document.getElementById('pngAutoCrop')?.checked ?? true;
+  let data;
+  let finalW = w*scale, finalH = h*scale;
+  if (autoCrop) {
+    const tempCanvas = document.createElement('canvas'); tempCanvas.width = w*scale; tempCanvas.height = h*scale;
+    const ctx = tempCanvas.getContext('2d');
+    ctx.drawImage(renderer.domElement, 0, 0);
+    const imgData = ctx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+    const bg = ctx.getImageData(0,0,1,1).data;
+    const bounds = computeCropBounds(imgData, bg);
+    if (bounds) {
+      const cropCanvas = document.createElement('canvas');
+      finalW = bounds.width; finalH = bounds.height;
+      cropCanvas.width = finalW; cropCanvas.height = finalH;
+      const cropCtx = cropCanvas.getContext('2d');
+      cropCtx.putImageData(imgData, -bounds.left, -bounds.top);
+      data = cropCanvas.toDataURL('image/png');
+    } else {
+      data = tempCanvas.toDataURL('image/png');
+    }
+  } else {
+    data = renderer.domElement.toDataURL('image/png');
+  }
 
   // Restore
   renderer.setPixelRatio(oldPR);
@@ -434,7 +459,7 @@ function savePNG(scale=1) {
   setLineResolutions(oldSize.x, oldSize.y);
   renderOnce();
 
-  const a = document.createElement('a'); a.href = data; a.download = `manifold_${w*scale}x${h*scale}.png`; a.click();
+  const a = document.createElement('a'); a.href = data; a.download = `manifold_${finalW}x${finalH}.png`; a.click();
 }
 
 function setLineResolutions(w,h){
@@ -509,6 +534,25 @@ function removeNearestVectorOrUV(px, py){
     const it=uvItems[best.idx]; if (it.obj) uvPathGroup.remove(it.obj); uvItems.splice(best.idx,1); return true;
   }
   return false;
+}
+
+function computeCropBounds(imageData, bg){
+  const { width, height, data } = imageData;
+  let top=height, bottom=-1, left=width, right=-1;
+  const tol = 8;
+  for (let y=0;y<height;y++){
+    for (let x=0;x<width;x++){
+      const idx = (y*width + x)*4;
+      const r=data[idx], g=data[idx+1], b=data[idx+2], a=data[idx+3];
+      if (Math.abs(r-bg[0])<=tol && Math.abs(g-bg[1])<=tol && Math.abs(b-bg[2])<=tol && Math.abs(a-bg[3])<=tol) continue;
+      if (x<left) left=x;
+      if (x>right) right=x;
+      if (y<top) top=y;
+      if (y>bottom) bottom=y;
+    }
+  }
+  if (right<left || bottom<top) return null;
+  return { left, top, right, bottom, width: right-left+1, height: bottom-top+1 };
 }
 
 // Initial UI setup
@@ -835,7 +879,8 @@ function snapshotConfig() {
       items: uvItems.map(it=>({ su:it.su,sv:it.sv, eu:it.eu,ev:it.ev, color:it.color, width:it.width, style:it.style }))
     }
     ,export: {
-      pngScale: parseFloat(document.getElementById('pngScale')?.value || '1')
+      pngScale: parseFloat(document.getElementById('pngScale')?.value || '1'),
+      autoCrop: !!document.getElementById('pngAutoCrop')?.checked
     }
   };
   // preset specific values
@@ -988,6 +1033,9 @@ function applyConfig(diff) {
   if (diff.export) {
     if (diff.export.pngScale!=null) {
       const e=document.getElementById('pngScale'); if (e) e.value = diff.export.pngScale;
+    }
+    if (diff.export.autoCrop!=null) {
+      const e=document.getElementById('pngAutoCrop'); if (e) e.checked = !!diff.export.autoCrop;
     }
   }
   // Wireframe
