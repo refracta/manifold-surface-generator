@@ -526,8 +526,37 @@ renderer.domElement.addEventListener('pointerup', (ev) => {
 });
 
 // Render
+const camMove = { forward:false, back:false, left:false, right:false, up:false, down:false };
+let __lastTime = performance.now();
+function applyCameraMovement(dt){
+  // Skip camera motion while rotating a surface with Shift+drag
+  if (typeof isRotatingSurface !== 'undefined' && isRotatingSurface) return;
+  const v = new THREE.Vector3();
+  const forward = new THREE.Vector3(); camera.getWorldDirection(forward); forward.y = 0; forward.normalize();
+  const right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0,1,0)).normalize();
+  const up = new THREE.Vector3(0,1,0);
+  if (camMove.forward) v.add(forward);
+  if (camMove.back) v.addScaledVector(forward, -1);
+  if (camMove.right) v.add(right);
+  if (camMove.left) v.addScaledVector(right, -1);
+  if (camMove.up) v.add(up);
+  if (camMove.down) v.addScaledVector(up, -1);
+  if (v.lengthSq()>0) {
+    const speed = 1.0; // units per second
+    v.normalize().multiplyScalar(speed * dt);
+    camera.position.add(v);
+    controls.target.add(v);
+    controls.update();
+    scheduleUpdateURL();
+  }
+}
+
 function animate() {
   requestAnimationFrame(animate);
+  const now = performance.now();
+  const dt = Math.min(0.05, (now - __lastTime)/1000);
+  __lastTime = now;
+  applyCameraMovement(dt);
   controls.update();
   renderer.render(scene, camera);
   markerLayer.update(camera, renderer);
@@ -774,6 +803,30 @@ window.addEventListener('keydown', async (e)=>{
     document.getElementById('uvPickStart')?.click();
     return;
   }
+  // Camera WASD + Space(Up)/Shift(Down)
+  switch (e.code) {
+    case 'KeyW': camMove.forward = true; e.preventDefault(); break;
+    case 'KeyS': camMove.back = true; e.preventDefault(); break;
+    case 'KeyA': camMove.left = true; e.preventDefault(); break;
+    case 'KeyD': camMove.right = true; e.preventDefault(); break;
+    case 'Space': camMove.up = true; e.preventDefault(); break;
+    case 'ShiftLeft':
+    case 'ShiftRight': camMove.down = true; break;
+  }
+});
+
+window.addEventListener('keyup', (e)=>{
+  if (isTypingTarget(e.target)) return;
+  switch (e.code) {
+    case 'KeyW': camMove.forward = false; break;
+    case 'KeyS': camMove.back = false; break;
+    case 'KeyA': camMove.left = false; break;
+    case 'KeyD': camMove.right = false; break;
+    case 'Space': camMove.up = false; break;
+    case 'ShiftLeft':
+    case 'ShiftRight': camMove.down = false; break;
+  }
+  scheduleUpdateURL();
 });
 
 // -------- Multi-surface: minimal manager (render all meshes; edit active) --------
