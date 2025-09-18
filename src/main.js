@@ -668,7 +668,11 @@ function bindActive(entry) {
 function saveActive() {
   const cur = getActiveSurface(); if (!cur) return;
   cur.params = params;
-  cur.savedConfig = snapshotConfig();
+  // snapshot without global camera/background/tone fields
+  const cfg = snapshotConfig();
+  if (cfg.camera) delete cfg.camera;
+  if (cfg.colors) { delete cfg.colors.bg; delete cfg.colors.bgA; delete cfg.colors.toneMapping; delete cfg.colors.exposure; delete cfg.colors.shadingStrength; }
+  cur.savedConfig = cfg;
 }
 
 function setActiveSurface(id, opts={}){
@@ -680,7 +684,10 @@ function setActiveSurface(id, opts={}){
   // Apply saved UI for that surface if available
   if (entry.savedConfig) {
     // applyConfig will rebuild geometry and then apply offset at the end
-    applyConfig(entry.savedConfig);
+    const cfg = JSON.parse(JSON.stringify(entry.savedConfig));
+    if (cfg.camera) delete cfg.camera;
+    if (cfg.colors) { delete cfg.colors.bg; delete cfg.colors.bgA; delete cfg.colors.toneMapping; delete cfg.colors.exposure; delete cfg.colors.shadingStrength; }
+    applyConfig(cfg);
   } else {
     regenerateSurface();
     if (surfaceGroup) {
@@ -1170,7 +1177,6 @@ function rebuildBoundaryLines() {
 function snapshotConfig() {
   const cfg = { preset: params.type, resU: params.resU, resV: params.resV, scale: params.scale, location: (surfaceGroup? { x: surfaceGroup.position.x, y: surfaceGroup.position.y, z: surfaceGroup.position.z } : {x:0,y:0,z:0}),
     presetParams: {}, wireframe: !!document.getElementById('wireframe').checked,
-    camera: { pos: [camera.position.x, camera.position.y, camera.position.z], target: [controls.target.x, controls.target.y, controls.target.z], fov: camera.fov },
     mask: {
       mode: document.getElementById('clipMode').value,
       rectW: parseFloat(document.getElementById('clipRectW').value),
