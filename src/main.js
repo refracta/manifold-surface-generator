@@ -71,6 +71,10 @@ function regenerateSurface() {
   surfaceGroup = group;
   surfaceState = state;
   scene.add(surfaceGroup);
+  // Re-apply absolute offset for the active surface so changes (e.g., scale) don't reset to origin
+  if (entry && entry.offset) {
+    surfaceGroup.position.set(Number(entry.offset.x||0), Number(entry.offset.y||0), Number(entry.offset.z||0));
+  }
   // overlay groups are per-surface (_geoGroup/_outlineGroup). Vectors/UV paths attach on creation.
   updateClip();
   rebuildGeodesics();
@@ -749,6 +753,11 @@ const DEFAULTS = snapshotConfig();
 function snapshotAppState(){
   // Save current active
   const active = activeSurfaceId;
+  // Global camera (single camera for all surfaces)
+  const cam = { pos: [camera.position.x, camera.position.y, camera.position.z], target: [controls.target.x, controls.target.y, controls.target.z], fov: camera.fov };
+  // Global background and renderer/tone mapping + shading strength
+  const background = { bg: document.getElementById('bgColor').value, bgA: parseFloat(document.getElementById('bgAlpha').value) };
+  const render = { toneMapping: document.getElementById('toneMapping')?.value || 'none', exposure: parseFloat(document.getElementById('exposure')?.value || '1'), shadingStrength: parseFloat(document.getElementById('shadingStrength')?.value || '1') };
   const arr = surfaces.map(s => ({ id: s.id, name: s.name,
     config: (function(){
       const oldParams = params; const oldActive = activeSurfaceId; const oldVec = vectorItems; const oldUV = uvItems;
@@ -760,9 +769,15 @@ function snapshotAppState(){
       if (!cfg) cfg = {};
       const off = s.offset || { x:0, y:0, z:0 };
       cfg.location = { x: Number(off.x||0), y: Number(off.y||0), z: Number(off.z||0) };
+      // Remove global fields from per-surface configs to prevent switching side-effects
+      if (cfg.camera) delete cfg.camera;
+      if (cfg.colors) {
+        delete cfg.colors.bg; delete cfg.colors.bgA;
+        delete cfg.colors.toneMapping; delete cfg.colors.exposure; delete cfg.colors.shadingStrength;
+      }
       return cfg;
     })() }));
-  return { active, surfaces: arr };
+  return { active, camera: cam, background, render, surfaces: arr };
 }
 
 let DEFAULT_APP = snapshotAppState();
@@ -778,7 +793,12 @@ function setAppState(state){
   for (const entry of state.surfaces){
     const e = createSurfaceEntry(null, entry.name || entry.id);
     e.id = entry.id || `surface_${surfaceIdCounter++}`;
-    e.savedConfig = entry.config || null;
+    e.savedConfig = entry.config ? JSON.parse(JSON.stringify(entry.config)) : null;
+    // strip global fields from per-surface savedConfig if present (legacy cfg)
+    if (e.savedConfig) {
+      if (e.savedConfig.camera) delete e.savedConfig.camera;
+      if (e.savedConfig.colors) { delete e.savedConfig.colors.bg; delete e.savedConfig.colors.bgA; delete e.savedConfig.colors.toneMapping; delete e.savedConfig.colors.exposure; delete e.savedConfig.colors.shadingStrength; }
+    }
     // adopt stored location into offset so we don't rely on active surfaceGroup state
     const loc = entry?.config?.location;
     if (loc && typeof loc === 'object') {
@@ -800,6 +820,27 @@ function setAppState(state){
     if (s.surfaceGroup && s.offset) s.surfaceGroup.position.set(s.offset.x, s.offset.y, s.offset.z);
   }
   setActiveSurface(cur, { silent: true });
+  // Apply global camera/background/renderer once
+  try {
+    if (state.background) {
+      if (state.background.bg) document.getElementById('bgColor').value = state.background.bg;
+      if (state.background.bgA!=null) document.getElementById('bgAlpha').value = state.background.bgA;
+      updateBackground();
+    }
+    if (state.render) {
+      if (state.render.toneMapping) document.getElementById('toneMapping').value = state.render.toneMapping;
+      if (state.render.exposure!=null) document.getElementById('exposure').value = state.render.exposure;
+      if (state.render.shadingStrength!=null) document.getElementById('shadingStrength').value = state.render.shadingStrength;
+      applyRendererSettings();
+      applyMaterialSettings();
+    }
+    if (state.camera) {
+      const c = state.camera; if (Array.isArray(c.pos)) camera.position.set(c.pos[0], c.pos[1], c.pos[2]);
+      if (Array.isArray(c.target)) controls.target.set(c.target[0], c.target[1], c.target[2]);
+      if (typeof c.fov === 'number') { camera.fov = c.fov; camera.updateProjectionMatrix(); }
+      controls.update();
+    }
+  } catch {}
   suppressURL = false;
   if (typeof rebuildAllMarkersOverlay==='function') rebuildAllMarkersOverlay();
 }
